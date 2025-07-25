@@ -30,12 +30,40 @@ const endIcon = L.divIcon({
   iconAnchor: [10, 10]
 });
 
-const customNodeIcon = L.divIcon({
-  html: '<div style="background-color: #8b5cf6; width: 16px; height: 16px; border-radius: 50%; border: 2px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.3);"></div>',
-  className: 'custom-marker',
-  iconSize: [16, 16],
-  iconAnchor: [8, 8]
-});
+// カスタムアイコン定義
+const createCustomNodeIcon = (iconType: string, color: string = '#8b5cf6') => {
+  const iconMap: { [key: string]: string } = {
+    'circle': `<div style="background-color: ${color}; width: 16px; height: 16px; border-radius: 50%; border: 2px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.3);"></div>`,
+    'square': `<div style="background-color: ${color}; width: 14px; height: 14px; border: 2px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.3);"></div>`,
+    'star': `<div style="font-size: 16px; color: ${color}; text-shadow: 1px 1px 2px rgba(0,0,0,0.5);">⭐</div>`,
+    'heart': `<div style="font-size: 16px; color: ${color}; text-shadow: 1px 1px 2px rgba(0,0,0,0.5);">❤️</div>`,
+    'pin': `<div style="font-size: 16px; color: ${color}; text-shadow: 1px 1px 2px rgba(0,0,0,0.5);">📍</div>`,
+    'home': `<div style="font-size: 16px; text-shadow: 1px 1px 2px rgba(0,0,0,0.5);">🏠</div>`,
+    'shop': `<div style="font-size: 16px; text-shadow: 1px 1px 2px rgba(0,0,0,0.5);">🏪</div>`,
+    'food': `<div style="font-size: 16px; text-shadow: 1px 1px 2px rgba(0,0,0,0.5);">🍽️</div>`,
+    'coffee': `<div style="font-size: 16px; text-shadow: 1px 1px 2px rgba(0,0,0,0.5);">☕</div>`,
+    'park': `<div style="font-size: 16px; text-shadow: 1px 1px 2px rgba(0,0,0,0.5);">🌳</div>`,
+    'station': `<div style="font-size: 16px; text-shadow: 1px 1px 2px rgba(0,0,0,0.5);">🚉</div>`,
+    'hospital': `<div style="font-size: 16px; text-shadow: 1px 1px 2px rgba(0,0,0,0.5);">🏥</div>`,
+    'school': `<div style="font-size: 16px; text-shadow: 1px 1px 2px rgba(0,0,0,0.5);">🏫</div>`,
+    'flag': `<div style="font-size: 16px; text-shadow: 1px 1px 2px rgba(0,0,0,0.5);">🚩</div>`,
+    'water': `<div style="font-size: 18px; text-shadow: 1px 1px 2px rgba(0,0,0,0.5);">💧</div>`,
+    'drink': `<div style="font-size: 18px; text-shadow: 1px 1px 2px rgba(0,0,0,0.5);">🥤</div>`,
+    'ice': `<div style="font-size: 18px; text-shadow: 1px 1px 2px rgba(0,0,0,0.5);">❄️</div>`,
+    'snowflake': `<div style="font-size: 18px; text-shadow: 1px 1px 2px rgba(0,0,0,0.5);">⛄</div>`,
+    'fountain': `<div style="font-size: 18px; text-shadow: 1px 1px 2px rgba(0,0,0,0.5);">⛲</div>`,
+    'umbrella': `<div style="font-size: 18px; text-shadow: 1px 1px 2px rgba(0,0,0,0.5);">☂️</div>`,
+    'fan': `<div style="font-size: 18px; text-shadow: 1px 1px 2px rgba(0,0,0,0.5);">🌊</div>`,
+    'shade': `<div style="font-size: 18px; text-shadow: 1px 1px 2px rgba(0,0,0,0.5);">🌴</div>`
+  };
+
+  return L.divIcon({
+    html: iconMap[iconType] || iconMap['circle'],
+    className: 'custom-marker',
+    iconSize: [20, 20],
+    iconAnchor: [10, 10]
+  });
+};
 
 // デフォルトアイコン制御用アイコン（削除済み）
 
@@ -79,10 +107,12 @@ interface CustomNode {
   description?: string;
   created_by?: string;
   created_at?: string;
+  icon_type?: string;
+  color?: string;
 }
 
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8001';
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8006';
 
 // Map click handler component
 interface MapClickEvent {
@@ -413,6 +443,64 @@ function App() {
     const description = prompt('説明を入力してください（任意）:', '');
     const createdBy = prompt('作成者名を入力してください（任意）:', 'anonymous') || 'anonymous';
     
+    // アイコン選択
+    const iconOptions = [
+      { value: 'circle', label: '🔵 円' },
+      { value: 'square', label: '⬜ 四角' },
+      { value: 'star', label: '⭐ 星' },
+      { value: 'heart', label: '❤️ ハート' },
+      { value: 'pin', label: '📍 ピン' },
+      { value: 'home', label: '🏠 家' },
+      { value: 'shop', label: '🏪 店' },
+      { value: 'food', label: '🍽️ 食事' },
+      { value: 'coffee', label: '☕ カフェ' },
+      { value: 'park', label: '🌳 公園' },
+      { value: 'station', label: '🚉 駅' },
+      { value: 'hospital', label: '🏥 病院' },
+      { value: 'school', label: '🏫 学校' },
+      { value: 'flag', label: '🚩 フラグ' },
+      { value: 'water', label: '💧 水分補給' },
+      { value: 'drink', label: '🥤 ドリンク' },
+      { value: 'ice', label: '❄️ 涼しい' },
+      { value: 'snowflake', label: '⛄ 冷たい' },
+      { value: 'fountain', label: '⛲ 水場' },
+      { value: 'umbrella', label: '☂️ 日除け' },
+      { value: 'fan', label: '🌊 涼風' },
+      { value: 'shade', label: '🌴 日陰' }
+    ];
+    
+    const iconSelection = prompt(
+      'アイコンを選択してください（番号を入力）:\n' +
+      iconOptions.map((opt, idx) => `${idx + 1}. ${opt.label}`).join('\n'),
+      '1'
+    );
+    
+    const iconIndex = parseInt(iconSelection || '1') - 1;
+    const selectedIcon = iconOptions[iconIndex] || iconOptions[0];
+    
+    // 色選択（形状アイコンの場合のみ）
+    let selectedColor = '#8b5cf6';
+    if (['circle', 'square'].includes(selectedIcon.value)) {
+      const colorOptions = [
+        { value: '#8b5cf6', label: '紫' },
+        { value: '#ef4444', label: '赤' },
+        { value: '#10b981', label: '緑' },
+        { value: '#3b82f6', label: '青' },
+        { value: '#f59e0b', label: '橙' },
+        { value: '#8b5a2b', label: '茶' },
+        { value: '#6b7280', label: '灰' }
+      ];
+      
+      const colorSelection = prompt(
+        '色を選択してください（番号を入力）:\n' +
+        colorOptions.map((opt, idx) => `${idx + 1}. ${opt.label}`).join('\n'),
+        '1'
+      );
+      
+      const colorIndex = parseInt(colorSelection || '1') - 1;
+      selectedColor = colorOptions[colorIndex]?.value || '#8b5cf6';
+    }
+    
     try {
       const newNodeData = {
         lat,
@@ -420,7 +508,9 @@ function App() {
         name: nodeName,
         type: nodeType,
         description: description || undefined,
-        created_by: createdBy
+        created_by: createdBy,
+        icon_type: selectedIcon.value,
+        color: selectedColor
       };
       
       console.log('Creating custom node:', newNodeData);
@@ -748,7 +838,7 @@ function App() {
             <Marker 
               key={node.id} 
               position={[node.lat, node.lng]} 
-              icon={customNodeIcon}
+              icon={createCustomNodeIcon(node.icon_type || 'circle', node.color)}
             >
               <Popup>
                 <div>
@@ -757,6 +847,16 @@ function App() {
                   {node.description && (
                     <>
                       説明: {node.description}<br/>
+                    </>
+                  )}
+                  {node.icon_type && (
+                    <>
+                      アイコン: {node.icon_type}<br/>
+                    </>
+                  )}
+                  {node.color && (
+                    <>
+                      色: <span style={{ color: node.color }}>●</span> {node.color}<br/>
                     </>
                   )}
                   {node.created_by && (

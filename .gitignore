@@ -47,3 +47,8 @@ logs/
 tmp/
 temp/
 nul
+
+# Database files
+*.db
+*.sqlite
+*.sqlite3

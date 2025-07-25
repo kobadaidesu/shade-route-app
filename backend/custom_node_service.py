@@ -16,6 +16,8 @@ class CustomNodeCreate(BaseModel):
     type: str
     description: Optional[str] = None
     created_by: Optional[str] = "anonymous"
+    icon_type: Optional[str] = "circle"
+    color: Optional[str] = "#8b5cf6"
 
 class CustomNodeResponse(BaseModel):
     id: int
@@ -26,6 +28,8 @@ class CustomNodeResponse(BaseModel):
     description: Optional[str]
     created_by: str
     created_at: str
+    icon_type: Optional[str]
+    color: Optional[str]
 
 class CustomNodeService:
     def __init__(self, db_path: str = "custom_nodes.db"):
@@ -44,7 +48,9 @@ class CustomNodeService:
                     type TEXT NOT NULL,
                     description TEXT,
                     created_by TEXT DEFAULT 'anonymous',
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    icon_type TEXT DEFAULT 'circle',
+                    color TEXT DEFAULT '#8b5cf6'
                 )
             """)
             conn.commit()
@@ -53,9 +59,9 @@ class CustomNodeService:
         """新しいカスタムノードを作成"""
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.execute("""
-                INSERT INTO custom_nodes (lat, lng, name, type, description, created_by)
-                VALUES (?, ?, ?, ?, ?, ?)
-            """, (node.lat, node.lng, node.name, node.type, node.description, node.created_by))
+                INSERT INTO custom_nodes (lat, lng, name, type, description, created_by, icon_type, color)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """, (node.lat, node.lng, node.name, node.type, node.description, node.created_by, node.icon_type, node.color))
             
             node_id = cursor.lastrowid
             conn.commit()
@@ -92,9 +98,9 @@ class CustomNodeService:
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.execute("""
                 UPDATE custom_nodes 
-                SET lat = ?, lng = ?, name = ?, type = ?, description = ?
+                SET lat = ?, lng = ?, name = ?, type = ?, description = ?, icon_type = ?, color = ?
                 WHERE id = ?
-            """, (node.lat, node.lng, node.name, node.type, node.description, node_id))
+            """, (node.lat, node.lng, node.name, node.type, node.description, node.icon_type, node.color, node_id))
             
             if cursor.rowcount > 0:
                 conn.commit()

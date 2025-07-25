@@ -9,7 +9,7 @@ from typing import Dict, List, Tuple
 class APIConfig:
     """API関連の設定"""
     host: str = "0.0.0.0"
-    port: int = 8005
+    port: int = 8006
     title: str = "Shade Route API"
     version: str = "2.0.0"
     
