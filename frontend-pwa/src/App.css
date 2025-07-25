@@ -1,0 +1,273 @@
+.App {
+  max-width: 100%;
+  margin: 0 auto;
+  padding: 0;
+  text-align: center;
+}
+
+.route-comparison {
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  padding: 1rem;
+  margin: 1rem;
+}
+
+.comparison-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.comparison-item {
+  background: #f8f9fa;
+  padding: 1rem;
+  border-radius: 6px;
+  border: 2px solid #e9ecef;
+}
+
+.comparison-item h4 {
+  margin: 0 0 0.5rem 0;
+  color: #495057;
+}
+
+.comparison-item.improvement {
+  background: #f0f8ff;
+  border-color: #007bff;
+}
+
+.feature-badge.dijkstra {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+}
+
+.time-controls {
+  background-color: rgba(255, 255, 255, 0.1);
+  padding: 0.5rem 1rem;
+  border-radius: 4px;
+  margin-top: 0.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+}
+
+.time-controls label {
+  color: white;
+  font-size: 0.9rem;
+  display: flex;
+  align-items: center;
+}
+
+.time-controls input[type="time"] {
+  background: white;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  padding: 0.25rem 0.5rem;
+  font-size: 0.9rem;
+}
+
+.app-header {
+  background-color: #2563eb;
+  color: white;
+  padding: 1rem;
+  margin-bottom: 0;
+}
+
+.app-header h1 {
+  margin: 0 0 1rem 0;
+  font-size: 1.5rem;
+}
+
+.status {
+  background-color: rgba(255, 255, 255, 0.1);
+  padding: 0.5rem;
+  border-radius: 4px;
+  margin-bottom: 1rem;
+  font-size: 0.9rem;
+}
+
+.controls {
+  display: flex;
+  gap: 1rem;
+  justify-content: center;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.controls select {
+  padding: 0.5rem;
+  border: none;
+  border-radius: 4px;
+  background-color: white;
+  color: #2563eb;
+  font-size: 1rem;
+}
+
+.controls button {
+  padding: 0.5rem 1rem;
+  border: none;
+  border-radius: 4px;
+  background-color: #10b981;
+  color: white;
+  cursor: pointer;
+  font-size: 1rem;
+  transition: background-color 0.2s;
+}
+
+.controls button:hover:not(:disabled) {
+  background-color: #059669;
+}
+
+.controls button:disabled {
+  background-color: #6b7280;
+  cursor: not-allowed;
+}
+
+.map-container {
+  position: relative;
+  margin-bottom: 1rem;
+}
+
+.route-info {
+  background-color: #f3f4f6;
+  padding: 1rem;
+  margin: 1rem;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.route-info h3 {
+  margin-top: 0;
+  color: #1f2937;
+}
+
+.info-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1rem;
+}
+
+.info-grid div {
+  background-color: white;
+  padding: 0.5rem;
+  border-radius: 4px;
+  font-weight: 500;
+  color: #374151;
+}
+
+.legend {
+  background-color: #f9fafb;
+  padding: 1rem;
+  margin: 1rem;
+  border-radius: 8px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.legend h4 {
+  margin-top: 0;
+  color: #1f2937;
+}
+
+.legend-items {
+  display: flex;
+  gap: 1rem;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.legend-color {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 1px solid #d1d5db;
+}
+
+.legend-item span {
+  font-size: 0.875rem;
+  color: #4b5563;
+}
+
+/* ルート機能バッジ */
+.route-features {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: center;
+  flex-wrap: wrap;
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid #e5e7eb;
+}
+
+.feature-badge {
+  background-color: #3b82f6;
+  color: white;
+  padding: 0.25rem 0.75rem;
+  border-radius: 12px;
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
+.feature-badge.osm {
+  background-color: #10b981;
+}
+
+.feature-badge.building {
+  background-color: #f59e0b;
+}
+
+.feature-badge.shade {
+  background-color: #22c55e;
+}
+
+.feature-badge.avoid {
+  background-color: #ef4444;
+}
+
+/* レスポンシブデザイン */
+@media (max-width: 768px) {
+  .controls {
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+  
+  .info-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .legend-items {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  
+  .app-header h1 {
+    font-size: 1.25rem;
+  }
+}
+
+/* PWA用のスタイル */
+@media (display-mode: standalone) {
+  .app-header {
+    padding-top: env(safe-area-inset-top);
+  }
+}
+
+/* Leaflet map のスタイル調整 */
+.leaflet-container {
+  height: 70vh !important;
+  width: 100% !important;
+}
+
+/* モバイルでのタッチ操作改善 */
+.leaflet-touch .leaflet-control-layers,
+.leaflet-touch .leaflet-bar {
+  border: 2px solid rgba(0,0,0,0.2);
+  background-clip: padding-box;
+}

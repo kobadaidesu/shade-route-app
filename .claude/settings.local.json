@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm run build:*)",
+      "Bash(npm run lint)",
+      "Bash(python:*)",
+      "Bash(pip install:*)",
+      "Bash(start /b python:*)",
+      "Bash(npm run dev:*)",
+      "Bash(curl:*)",
+      "Bash(powershell:*)",
+      "Bash(timeout:*)",
+      "Bash(taskkill:*)"
+    ],
+    "deny": []
+  }
+}
