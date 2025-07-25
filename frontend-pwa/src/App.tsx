@@ -71,16 +71,18 @@ interface Building {
 }
 
 interface CustomNode {
-  id: string;
+  id: number;
   lat: number;
   lng: number;
   name: string;
   type: string;
   description?: string;
+  created_by?: string;
+  created_at?: string;
 }
 
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8005';
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8001';
 
 // Map click handler component
 interface MapClickEvent {
@@ -153,14 +155,7 @@ function App() {
   const [selectedTime, setSelectedTime] = useState('');
   const [autoUpdate, setAutoUpdate] = useState(false);
   const [hideOSMIcons, setHideOSMIcons] = useState(false);
-  const [customNodes, setCustomNodes] = useState<CustomNode[]>(() => {
-    try {
-      const saved = localStorage.getItem('shade-route-custom-nodes');
-      return saved ? JSON.parse(saved) : [];
-    } catch {
-      return [];
-    }
-  });
+  const [customNodes, setCustomNodes] = useState<CustomNode[]>([]);
   const [customNodeMode, setCustomNodeMode] = useState(false);
   const [showCustomNodes, setShowCustomNodes] = useState(true);
   // const [shadeTimeline, setShadeTimeline] = useState<any>(null);
@@ -208,14 +203,48 @@ function App() {
     console.log('Map icons enhancement applied via CSS');
   }, []);
 
+  // カスタムノードデータを取得（メモ化）
+  const fetchCustomNodes = useCallback(async () => {
+    try {
+      console.log('Fetching custom nodes data...');
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000);
+      
+      const response = await fetch(`${API_BASE_URL}/api/custom-nodes`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        signal: controller.signal,
+      });
+
+      clearTimeout(timeoutId);
+
+      if (response.ok) {
+        const data = await response.json();
+        console.log('Custom nodes data received:', data);
+        setCustomNodes(data);
+      } else {
+        console.error('Failed to fetch custom nodes:', response.status);
+      }
+    } catch (error) {
+      if (error instanceof Error && error.name === 'AbortError') {
+        console.warn('Custom nodes fetch timeout');
+      } else {
+        console.error('Error fetching custom nodes:', error);
+      }
+    }
+  }, []);
+
   // コンポーネントマウント時にデータを取得
   useEffect(() => {
     fetchBuildings();
+    fetchCustomNodes();
     
     // 現在時刻を設定
     const now = new Date();
     setSelectedTime(`${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`);
-  }, [fetchBuildings]);
+  }, [fetchBuildings, fetchCustomNodes]);
 
   // 自動更新機能
   useEffect(() => {
@@ -376,44 +405,149 @@ function App() {
     setRouteInfo(null);
   }, []);
 
-  const addCustomNode = useCallback((lat: number, lng: number) => {
+  const addCustomNode = useCallback(async (lat: number, lng: number) => {
     const nodeName = prompt('ノード名を入力してください:', `カスタムポイント ${customNodes.length + 1}`);
     if (!nodeName) return;
     
     const nodeType = prompt('ノードタイプを入力してください:', 'custom') || 'custom';
     const description = prompt('説明を入力してください（任意）:', '');
+    const createdBy = prompt('作成者名を入力してください（任意）:', 'anonymous') || 'anonymous';
     
-    const newNode: CustomNode = {
-      id: `custom-${Date.now()}`,
-      lat,
-      lng,
-      name: nodeName,
-      type: nodeType,
-      description: description || undefined
-    };
-    
-    setCustomNodes(prev => {
-      const updated = [...prev, newNode];
-      localStorage.setItem('shade-route-custom-nodes', JSON.stringify(updated));
-      return updated;
-    });
-    setCustomNodeMode(false);
-  }, [customNodes.length]);
-
-  const removeCustomNode = useCallback((nodeId: string) => {
-    setCustomNodes(prev => {
-      const updated = prev.filter(node => node.id !== nodeId);
-      localStorage.setItem('shade-route-custom-nodes', JSON.stringify(updated));
-      return updated;
-    });
-  }, []);
-
-  const clearCustomNodes = useCallback(() => {
-    if (customNodes.length > 0 && confirm('すべてのカスタムノードを削除しますか？')) {
-      setCustomNodes([]);
-      localStorage.setItem('shade-route-custom-nodes', JSON.stringify([]));
+    try {
+      const newNodeData = {
+        lat,
+        lng,
+        name: nodeName,
+        type: nodeType,
+        description: description || undefined,
+        created_by: createdBy
+      };
+      
+      console.log('Creating custom node:', newNodeData);
+      
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000);
+      
+      const response = await fetch(`${API_BASE_URL}/api/custom-nodes`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(newNodeData),
+        signal: controller.signal
+      });
+      
+      clearTimeout(timeoutId);
+      
+      if (response.ok) {
+        const createdNode = await response.json();
+        console.log('Custom node created:', createdNode);
+        
+        // ローカル状態を更新
+        setCustomNodes(prev => [...prev, createdNode]);
+        setCustomNodeMode(false);
+        
+        alert('カスタムノードを作成しました！');
+      } else {
+        const errorText = await response.text();
+        console.error('Server error:', errorText);
+        alert(`カスタムノードの作成に失敗しました: ${errorText}`);
+      }
+    } catch (error) {
+      console.error('Custom node creation error:', error);
+      if (error instanceof Error) {
+        if (error.name === 'AbortError') {
+          alert('リクエストがタイムアウトしました。もう一度お試しください。');
+        } else {
+          alert(`エラーが発生しました: ${error.message}`);
+        }
+      } else {
+        alert('不明なエラーが発生しました');
+      }
     }
   }, [customNodes.length]);
+
+  const removeCustomNode = useCallback(async (nodeId: number) => {
+    try {
+      console.log('Deleting custom node:', nodeId);
+      
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000);
+      
+      const response = await fetch(`${API_BASE_URL}/api/custom-nodes/${nodeId}`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        signal: controller.signal
+      });
+      
+      clearTimeout(timeoutId);
+      
+      if (response.ok) {
+        console.log('Custom node deleted');
+        
+        // ローカル状態を更新
+        setCustomNodes(prev => prev.filter(node => node.id !== nodeId));
+        
+        alert('カスタムノードを削除しました！');
+      } else {
+        const errorText = await response.text();
+        console.error('Server error:', errorText);
+        alert(`カスタムノードの削除に失敗しました: ${errorText}`);
+      }
+    } catch (error) {
+      console.error('Custom node deletion error:', error);
+      if (error instanceof Error) {
+        if (error.name === 'AbortError') {
+          alert('リクエストがタイムアウトしました。もう一度お試しください。');
+        } else {
+          alert(`エラーが発生しました: ${error.message}`);
+        }
+      } else {
+        alert('不明なエラーが発生しました');
+      }
+    }
+  }, []);
+
+  const clearCustomNodes = useCallback(async () => {
+    if (customNodes.length === 0) return;
+    
+    if (!confirm('すべてのカスタムノードを削除しますか？')) return;
+    
+    try {
+      // 全てのノードを個別に削除
+      const deletePromises = customNodes.map(node => 
+        fetch(`${API_BASE_URL}/api/custom-nodes/${node.id}`, {
+          method: 'DELETE',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        })
+      );
+      
+      const results = await Promise.allSettled(deletePromises);
+      
+      // 成功した削除の数をカウント
+      const successCount = results.filter(result => 
+        result.status === 'fulfilled' && result.value.ok
+      ).length;
+      
+      if (successCount > 0) {
+        console.log(`${successCount} custom nodes deleted`);
+        
+        // ローカル状態をクリア
+        setCustomNodes([]);
+        
+        alert(`${successCount}個のカスタムノードを削除しました！`);
+      } else {
+        alert('カスタムノードの削除に失敗しました');
+      }
+    } catch (error) {
+      console.error('Custom nodes clearing error:', error);
+      alert('カスタムノードの削除中にエラーが発生しました');
+    }
+  }, [customNodes]);
 
   // ルートの色を決定する関数（将来的に使用予定）
   // const getRouteColor = useCallback((shadeRatio: number) => {
@@ -540,6 +674,10 @@ function App() {
             {showCustomNodes ? '📍 ノード表示中' : '📍 ノード非表示'}
           </button>
           
+          <button onClick={fetchCustomNodes}>
+            🔄 ノード更新
+          </button>
+          
           {customNodes.length > 0 && (
             <button onClick={clearCustomNodes}>
               🗑️ ノード全削除
@@ -621,7 +759,18 @@ function App() {
                       説明: {node.description}<br/>
                     </>
                   )}
+                  {node.created_by && (
+                    <>
+                      作成者: {node.created_by}<br/>
+                    </>
+                  )}
+                  {node.created_at && (
+                    <>
+                      作成日時: {new Date(node.created_at).toLocaleString()}<br/>
+                    </>
+                  )}
                   座標: {node.lat.toFixed(6)}, {node.lng.toFixed(6)}<br/>
+                  ID: {node.id}<br/>
                   <button 
                     onClick={() => removeCustomNode(node.id)}
                     style={{ 

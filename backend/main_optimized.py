@@ -24,6 +24,9 @@ from models import (
     RouteRequest, RouteResponse, BuildingCollection, 
     HealthResponse, ErrorResponse, CacheStats
 )
+from custom_node_service import (
+    custom_node_service, CustomNodeCreate, CustomNodeResponse
+)
 
 # ログ設定
 logging.basicConfig(
@@ -358,6 +361,141 @@ async def calculate_direct_route(
             detail=f"直線ルート計算に失敗しました: {str(e)}"
         )
 
+
+# カスタムノード管理エンドポイント
+@app.post("/api/custom-nodes", response_model=CustomNodeResponse)
+async def create_custom_node(node: CustomNodeCreate):
+    """新しいカスタムノードを作成"""
+    try:
+        # 座標範囲チェック（東京近郊）
+        if not (139.0 <= node.lng <= 140.0 and 35.0 <= node.lat <= 36.0):
+            raise HTTPException(
+                status_code=400,
+                detail="東京近郊の座標を指定してください"
+            )
+        
+        created_node = custom_node_service.create_node(node)
+        logger.info(f"Created custom node: {created_node.name} by {created_node.created_by}")
+        
+        return created_node
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Custom node creation error: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"カスタムノードの作成に失敗しました: {str(e)}"
+        )
+
+@app.get("/api/custom-nodes", response_model=List[CustomNodeResponse])
+async def get_custom_nodes(created_by: str = None):
+    """カスタムノード一覧を取得"""
+    try:
+        if created_by:
+            nodes = custom_node_service.get_nodes_by_creator(created_by)
+        else:
+            nodes = custom_node_service.get_all_nodes()
+        
+        logger.info(f"Retrieved {len(nodes)} custom nodes")
+        return nodes
+        
+    except Exception as e:
+        logger.error(f"Custom nodes retrieval error: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"カスタムノードの取得に失敗しました: {str(e)}"
+        )
+
+@app.get("/api/custom-nodes/{node_id}", response_model=CustomNodeResponse)
+async def get_custom_node(node_id: int):
+    """特定のカスタムノードを取得"""
+    try:
+        node = custom_node_service.get_node(node_id)
+        if not node:
+            raise HTTPException(
+                status_code=404,
+                detail="カスタムノードが見つかりません"
+            )
+        
+        return node
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Custom node retrieval error: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"カスタムノードの取得に失敗しました: {str(e)}"
+        )
+
+@app.put("/api/custom-nodes/{node_id}", response_model=CustomNodeResponse)
+async def update_custom_node(node_id: int, node: CustomNodeCreate):
+    """カスタムノードを更新"""
+    try:
+        # 座標範囲チェック（東京近郊）
+        if not (139.0 <= node.lng <= 140.0 and 35.0 <= node.lat <= 36.0):
+            raise HTTPException(
+                status_code=400,
+                detail="東京近郊の座標を指定してください"
+            )
+        
+        updated_node = custom_node_service.update_node(node_id, node)
+        if not updated_node:
+            raise HTTPException(
+                status_code=404,
+                detail="カスタムノードが見つかりません"
+            )
+        
+        logger.info(f"Updated custom node: {updated_node.name}")
+        return updated_node
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Custom node update error: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"カスタムノードの更新に失敗しました: {str(e)}"
+        )
+
+@app.delete("/api/custom-nodes/{node_id}")
+async def delete_custom_node(node_id: int):
+    """カスタムノードを削除"""
+    try:
+        success = custom_node_service.delete_node(node_id)
+        if not success:
+            raise HTTPException(
+                status_code=404,
+                detail="カスタムノードが見つかりません"
+            )
+        
+        logger.info(f"Deleted custom node ID: {node_id}")
+        return {"message": "カスタムノードを削除しました"}
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Custom node deletion error: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"カスタムノードの削除に失敗しました: {str(e)}"
+        )
+
+@app.get("/api/custom-nodes/bounds")
+async def get_custom_nodes_in_bounds(north: float, south: float, east: float, west: float):
+    """範囲内のカスタムノードを取得"""
+    try:
+        nodes = custom_node_service.get_nodes_in_bounds(north, south, east, west)
+        logger.info(f"Retrieved {len(nodes)} custom nodes in bounds")
+        return nodes
+        
+    except Exception as e:
+        logger.error(f"Custom nodes bounds retrieval error: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"範囲内カスタムノードの取得に失敗しました: {str(e)}"
+        )
 
 # デバッグ用エンドポイント
 @app.get("/api/debug/config")
