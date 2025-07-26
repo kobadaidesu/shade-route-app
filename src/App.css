@@ -1,0 +1,669 @@
+.App {
+  max-width: 100%;
+  margin: 0 auto;
+  padding: 0;
+  text-align: center;
+}
+
+.route-comparison {
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  padding: 1rem;
+  margin: 1rem;
+}
+
+.comparison-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.comparison-item {
+  background: #f8f9fa;
+  padding: 1rem;
+  border-radius: 6px;
+  border: 2px solid #e9ecef;
+}
+
+.comparison-item h4 {
+  margin: 0 0 0.5rem 0;
+  color: #495057;
+}
+
+.comparison-item.improvement {
+  background: #f0f8ff;
+  border-color: #007bff;
+}
+
+.feature-badge.dijkstra {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+}
+
+.time-controls {
+  background-color: rgba(255, 255, 255, 0.1);
+  padding: 0.5rem 1rem;
+  border-radius: 4px;
+  margin-top: 0.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+}
+
+.time-controls label {
+  color: white;
+  font-size: 0.9rem;
+  display: flex;
+  align-items: center;
+}
+
+.time-controls input[type="time"] {
+  background: white;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  padding: 0.25rem 0.5rem;
+  font-size: 0.9rem;
+}
+
+.app-header {
+  background-color: #2563eb;
+  color: white;
+  padding: 1rem;
+  margin-bottom: 0;
+}
+
+.app-header h1 {
+  margin: 0 0 1rem 0;
+  font-size: 1.5rem;
+}
+
+.status {
+  background-color: rgba(255, 255, 255, 0.1);
+  padding: 0.5rem;
+  border-radius: 4px;
+  margin-bottom: 1rem;
+  font-size: 0.9rem;
+}
+
+.controls {
+  display: flex;
+  gap: 1rem;
+  justify-content: center;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.controls select {
+  padding: 0.5rem;
+  border: none;
+  border-radius: 4px;
+  background-color: white;
+  color: #2563eb;
+  font-size: 1rem;
+}
+
+.controls button {
+  padding: 0.5rem 1rem;
+  border: none;
+  border-radius: 4px;
+  background-color: #10b981;
+  color: white;
+  cursor: pointer;
+  font-size: 1rem;
+  transition: background-color 0.2s;
+}
+
+.controls button:hover:not(:disabled) {
+  background-color: #059669;
+}
+
+.controls button:disabled {
+  background-color: #6b7280;
+  cursor: not-allowed;
+}
+
+.map-container {
+  position: relative;
+  margin-bottom: 1rem;
+}
+
+.route-info {
+  background-color: #f3f4f6;
+  padding: 1rem;
+  margin: 1rem;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.route-info h3 {
+  margin-top: 0;
+  color: #1f2937;
+}
+
+.info-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1rem;
+}
+
+.info-grid div {
+  background-color: white;
+  padding: 0.5rem;
+  border-radius: 4px;
+  font-weight: 500;
+  color: #374151;
+}
+
+.legend {
+  background-color: #f9fafb;
+  padding: 1rem;
+  margin: 1rem;
+  border-radius: 8px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.legend h4 {
+  margin-top: 0;
+  color: #1f2937;
+}
+
+.legend-items {
+  display: flex;
+  gap: 1rem;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.legend-color {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 1px solid #d1d5db;
+}
+
+.legend-item span {
+  font-size: 0.875rem;
+  color: #4b5563;
+}
+
+/* ルート機能バッジ */
+.route-features {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: center;
+  flex-wrap: wrap;
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid #e5e7eb;
+}
+
+.feature-badge {
+  background-color: #3b82f6;
+  color: white;
+  padding: 0.25rem 0.75rem;
+  border-radius: 12px;
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
+.feature-badge.osm {
+  background-color: #10b981;
+}
+
+.feature-badge.building {
+  background-color: #f59e0b;
+}
+
+.feature-badge.shade {
+  background-color: #22c55e;
+}
+
+.feature-badge.avoid {
+  background-color: #ef4444;
+}
+
+/* レスポンシブデザイン */
+@media (max-width: 768px) {
+  .controls {
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+  
+  .info-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .legend-items {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  
+  .app-header h1 {
+    font-size: 1.25rem;
+  }
+}
+
+/* 基本リセット */
+* {
+  box-sizing: border-box;
+}
+
+html, body {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  position: fixed;
+  top: 0;
+  left: 0;
+}
+
+#root {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+/* デザインルールに基づくカラーテーマ */
+:root {
+  --primary-cool: #2196F3;
+  --shadow-medium: rgba(26, 26, 46, 0.5);
+  --comfort-cool: #4FC3F7;
+  --comfort-comfortable: #66BB6A;
+  --comfort-warm: #FFCA28;
+  --comfort-hot: #FF7043;
+  --comfort-extreme: #E53935;
+  --safe-area-top: env(safe-area-inset-top, 0px);
+  --safe-area-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-area-left: env(safe-area-inset-left, 0px);
+  --safe-area-right: env(safe-area-inset-right, 0px);
+  
+  /* iPhone 15 専用設定 */
+  --iphone15-screen-width: 393px;
+  --iphone15-screen-height: 852px;
+  --iphone15-status-bar: 54px;
+  --iphone15-home-indicator: 34px;
+  --iphone15-corner-radius: 20px;
+}
+
+/* モバイル優先レイアウト */
+.app-container {
+  height: 100vh;
+  height: 100dvh;
+  width: 100vw;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  position: fixed;
+  top: 0;
+  left: 0;
+  margin: 0;
+  padding: 0;
+}
+
+/* 地図エリア（70-80%占有） */
+.map-area {
+  flex: 1;
+  position: relative;
+  width: 100%;
+  height: calc(100vh - 64px);
+  margin-bottom: 64px;
+}
+
+/* Leaflet map のスタイル調整 */
+.leaflet-container {
+  height: 100% !important;
+  width: 100% !important;
+  z-index: 1;
+}
+
+/* 地図上のコントロールボタン */
+.map-controls {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.map-control-btn {
+  width: 48px;
+  height: 48px;
+  background: white;
+  border: none;
+  border-radius: 24px;
+  box-shadow: 0 2px 8px var(--shadow-medium);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 18px;
+  transition: all 0.2s;
+}
+
+.map-control-btn:hover {
+  background: #f5f5f5;
+  transform: scale(1.05);
+}
+
+.map-control-btn:active {
+  transform: scale(0.95);
+}
+
+/* ボトムシート */
+.bottom-sheet {
+  background: white;
+  border-radius: 20px 20px 0 0;
+  box-shadow: 0 -4px 20px var(--shadow-medium);
+  transition: transform 0.3s ease;
+  z-index: 999;
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 64px;
+  width: 100%;
+}
+
+.bottom-sheet.collapsed {
+  transform: translateY(calc(100% - 80px));
+}
+
+.bottom-sheet.peek {
+  transform: translateY(calc(100% - 200px));
+}
+
+.bottom-sheet.expanded {
+  transform: translateY(0);
+}
+
+.bottom-sheet-handle {
+  width: 36px;
+  height: 4px;
+  background: #ddd;
+  border-radius: 2px;
+  margin: 12px auto 16px;
+  cursor: grab;
+}
+
+.bottom-sheet-content {
+  padding: 0 20px 20px;
+  max-height: 50vh;
+  overflow-y: auto;
+}
+
+/* Bottom Navigation */
+.bottom-nav {
+  display: flex;
+  background: white;
+  border-top: 1px solid #e0e0e0;
+  padding: 8px 0;
+  padding-bottom: 8px;
+  padding-left: var(--safe-area-left);
+  padding-right: var(--safe-area-right);
+  box-shadow: 0 -2px 8px rgba(0,0,0,0.1);
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  width: 100%;
+  z-index: 1000;
+}
+
+.nav-item {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 8px 4px;
+  min-height: 48px;
+  cursor: pointer;
+  transition: color 0.2s;
+  text-decoration: none;
+  color: #666;
+}
+
+.nav-item.active {
+  color: var(--primary-cool);
+}
+
+.nav-item:hover {
+  color: var(--primary-cool);
+  background: rgba(33, 150, 243, 0.05);
+}
+
+.nav-icon {
+  font-size: 20px;
+  margin-bottom: 4px;
+}
+
+.nav-label {
+  font-size: 10px;
+  font-weight: 500;
+  text-align: center;
+}
+
+/* モバイル全般の最適化 */
+@media screen and (max-width: 430px) {
+  :root {
+    --nav-height: 88px; /* より高いナビゲーション */
+    --bottom-sheet-peek: 160px; /* より大きなピーク表示 */
+    --control-btn-size: 52px; /* より大きなボタン */
+  }
+  
+  .app-container {
+    height: 100vh;
+    height: 100dvh;
+    width: 100vw;
+    position: fixed;
+    top: 0;
+    left: 0;
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+  }
+
+/* モバイル全般での地図エリア最適化 */
+@media screen and (max-width: 430px) {
+  .map-area {
+    height: calc(100dvh - 88px);
+    max-height: calc(100dvh - 88px);
+    width: 100%;
+    position: relative;
+  }
+  
+  /* マップコントロールの調整 */
+  .map-controls {
+    top: calc(var(--safe-area-top) + 20px);
+    right: calc(var(--safe-area-right) + 20px);
+  }
+  
+  .map-control-btn {
+    width: var(--control-btn-size, 52px);
+    height: var(--control-btn-size, 52px);
+    border-radius: calc(var(--control-btn-size, 52px) / 2);
+    font-size: 20px;
+    box-shadow: 0 4px 12px var(--shadow-medium);
+  }
+  
+  /* ボトムシートの最適化 */
+  .bottom-sheet {
+    border-radius: 20px 20px 0 0;
+    max-height: calc(100dvh - 100px);
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 88px;
+    width: 100%;
+    z-index: 999;
+  }
+  
+  .bottom-sheet.collapsed {
+    transform: translateY(calc(100% - var(--bottom-sheet-peek, 160px)));
+  }
+  
+  .bottom-sheet.peek {
+    transform: translateY(calc(100% - 280px));
+  }
+  
+  .bottom-sheet-handle {
+    width: 44px;
+    height: 5px;
+    background: #c7c7cc;
+    border-radius: 3px;
+    margin: 16px auto 20px;
+  }
+  
+  /* Bottom Navigation の最適化 */
+  .bottom-nav {
+    height: var(--nav-height, 88px);
+    padding: 12px 0;
+    padding-bottom: calc(12px + var(--safe-area-bottom));
+    padding-left: var(--safe-area-left);
+    padding-right: var(--safe-area-right);
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    width: 100%;
+    z-index: 1000;
+  }
+  
+  .nav-item {
+    min-height: 64px;
+    padding: 12px 8px;
+    border-radius: 12px;
+    margin: 0 4px;
+    transition: all 0.2s ease;
+  }
+  
+  .nav-item:active {
+    transform: scale(0.95);
+    background: rgba(33, 150, 243, 0.1);
+  }
+  
+  .nav-icon {
+    font-size: 24px;
+    margin-bottom: 6px;
+  }
+  
+  .nav-label {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: -0.2px;
+  }
+  
+  /* ボトムシートコンテンツの最適化 */
+  .bottom-sheet-content {
+    padding: 0 24px 24px;
+    max-height: calc(60dvh);
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  
+  .bottom-sheet-content h3 {
+    font-size: 20px;
+    font-weight: 700;
+    margin: 0 0 20px;
+    color: #1d1d1f;
+  }
+  
+  /* ボタンの最適化 */
+  .bottom-sheet-content button {
+    min-height: 50px;
+    padding: 14px 20px;
+    border-radius: 12px;
+    font-size: 16px;
+    font-weight: 600;
+    transition: all 0.2s ease;
+  }
+  
+  .bottom-sheet-content button:active {
+    transform: scale(0.96);
+  }
+  
+  /* セレクトボックスの最適化 */
+  .bottom-sheet-content select {
+    min-height: 50px;
+    padding: 14px 16px;
+    border-radius: 12px;
+    border: 2px solid #e5e5e7;
+    font-size: 16px;
+    background: white;
+  }
+  
+  /* チェックボックスの最適化 */
+  .bottom-sheet-content input[type="checkbox"] {
+    width: 24px;
+    height: 24px;
+    accent-color: var(--primary-cool);
+  }
+  
+  /* 時刻入力の最適化 */
+  .bottom-sheet-content input[type="time"] {
+    min-height: 44px;
+    padding: 12px 16px;
+    border-radius: 10px;
+    border: 2px solid #e5e5e7;
+    font-size: 16px;
+  }
+}
+
+/* PWA用のスタイル */
+@media (display-mode: standalone) {
+  .app-container {
+    padding-top: var(--safe-area-top);
+  }
+  
+  /* iPhone 15でのPWA最適化 */
+  @supports (height: 100dvh) {
+    .app-container {
+      height: 100dvh;
+    }
+    
+    .map-area {
+      height: calc(100dvh - 88px);
+    }
+  }
+}
+
+/* Dynamic Island対応 */
+@media screen and (device-width: 393px) and (device-height: 852px) and (display-mode: standalone) {
+  .map-controls {
+    top: calc(var(--safe-area-top) + 10px); /* Dynamic Islandを避ける */
+  }
+  
+  /* Notch/Dynamic Island のスペースを考慮 */
+  .app-container {
+    padding-top: 0; /* safe-areaで自動調整 */
+  }
+  
+  /* iPhone 15の余分なスペース削除 */
+  .bottom-sheet {
+    bottom: 88px; /* セーフエリアを無視して直接88pxに */
+  }
+  
+  .bottom-nav {
+    margin-bottom: 0; /* 余分なマージンを削除 */
+    height: 88px; /* 固定高さ */
+  }
+}
+
+/* モバイルでのタッチ操作改善 */
+.leaflet-touch .leaflet-control-layers,
+.leaflet-touch .leaflet-bar {
+  border: 2px solid rgba(0,0,0,0.2);
+  background-clip: padding-box;
+}
