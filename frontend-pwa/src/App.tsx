@@ -61,6 +61,41 @@ interface CustomNode {
   color?: string;
 }
 
+// GPS関連のインターフェース
+interface GPSPosition {
+  latitude: number;
+  longitude: number;
+  accuracy: number;
+  timestamp: number;
+}
+
+interface GPSOptions {
+  enableHighAccuracy: boolean;
+  timeout: number;
+  maximumAge: number;
+}
+
+// Phase 3: 歩行ログ関連インターフェース
+interface WalkingSession {
+  id: string;
+  startTime: number;
+  endTime?: number;
+  startLocation: GPSPosition;
+  endLocation?: GPSPosition;
+  path: GPSPosition[];
+  totalDistance: number;
+  averageSpeed: number;
+  duration: number;
+}
+
+interface WalkingStats {
+  totalSessions: number;
+  totalDistance: number;
+  totalTime: number;
+  averageSpeed: number;
+  averageAccuracy: number;
+}
+
 // Create custom icons
 const startIcon = L.divIcon({
   html: '<div style="background-color: #22c55e; width: 32px; height: 32px; border-radius: 50%; border: 2px solid white; box-shadow: 0 2px 6px rgba(0,0,0,0.3); display: flex; align-items: center; justify-content: center; font-size: 16px;">🚀</div>',
@@ -76,6 +111,14 @@ const endIcon = L.divIcon({
   iconAnchor: [16, 16]
 });
 
+// 現在地アイコン
+const currentLocationIcon = L.divIcon({
+  html: '<div style="background-color: #3b82f6; width: 20px; height: 20px; border-radius: 50%; border: 3px solid white; box-shadow: 0 2px 6px rgba(0,0,0,0.3); position: relative;"><div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 8px; height: 8px; background-color: white; border-radius: 50%;"></div></div>',
+  className: 'current-location-marker',
+  iconSize: [20, 20],
+  iconAnchor: [10, 10]
+});
+
 // 動的にAPI URLを設定（スマホアクセス対応）
 const getApiBaseUrl = () => {
   // 環境変数が設定されている場合はそれを使用
@@ -88,11 +131,11 @@ const getApiBaseUrl = () => {
   
   // localhost または 127.0.0.1 の場合はlocalhostを使用
   if (hostname === 'localhost' || hostname === '127.0.0.1') {
-    return 'http://localhost:8001';
+    return 'http://localhost:8007';
   }
   
-  // その他の場合（外部IPアクセス）は同じホストのポート8001を使用
-  return `http://${hostname}:8001`;
+  // その他の場合（外部IPアクセス）は同じホストのポート8007を使用
+  return `http://${hostname}:8007`;
 };
 
 const API_BASE_URL = getApiBaseUrl();
@@ -170,6 +213,26 @@ const App = () => {
   const [customNodes, setCustomNodes] = useState<CustomNode[]>([]);
   const [customNodeMode, setCustomNodeMode] = useState(false);
 
+  // GPS状態
+  const [currentLocation, setCurrentLocation] = useState<GPSPosition | null>(null);
+  const [gpsEnabled, setGpsEnabled] = useState(false);
+  const [gpsLoading, setGpsLoading] = useState(false);
+  const [gpsError, setGpsError] = useState<string | null>(null);
+  
+  // Phase 2: リアルタイム追跡状態
+  const [isTracking, setIsTracking] = useState(false);
+  const [watchId, setWatchId] = useState<number | null>(null);
+  const [navigationMode, setNavigationMode] = useState(false);
+  const [distanceToDestination, setDistanceToDestination] = useState<number | null>(null);
+  const [locationHistory, setLocationHistory] = useState<GPSPosition[]>([]);
+
+  // Phase 3: 高度なGPS機能状態
+  const [currentSession, setCurrentSession] = useState<WalkingSession | null>(null);
+  const [walkingSessions, setWalkingSessions] = useState<WalkingSession[]>([]);
+  const [walkingStats, setWalkingStats] = useState<WalkingStats | null>(null);
+  const [estimatedArrivalTime, setEstimatedArrivalTime] = useState<Date | null>(null);
+  const [averageWalkingSpeed, setAverageWalkingSpeed] = useState(4.5); // km/h (一般的な歩行速度)
+
   // UI状態
   const [bottomSheetState, setBottomSheetState] = useState<'collapsed' | 'peek' | 'expanded'>('peek');
   const [activeTab, setActiveTab] = useState<'route' | 'nodes' | 'settings'>('route');
@@ -177,6 +240,435 @@ const App = () => {
   const [isDragging, setIsDragging] = useState(false);
   const [dragStartY, setDragStartY] = useState(0);
   const [dragCurrentY, setDragCurrentY] = useState(0);
+
+  // GPS機能
+  const gpsOptions: GPSOptions = {
+    enableHighAccuracy: true,
+    timeout: 10000,
+    maximumAge: 60000
+  };
+
+  // Phase 2: ユーティリティ関数
+  // 2点間の距離を計算（メートル）
+  const calculateDistance = useCallback((lat1: number, lon1: number, lat2: number, lon2: number): number => {
+    const R = 6371e3; // 地球の半径（メートル）
+    const φ1 = lat1 * Math.PI / 180;
+    const φ2 = lat2 * Math.PI / 180;
+    const Δφ = (lat2 - lat1) * Math.PI / 180;
+    const Δλ = (lon2 - lon1) * Math.PI / 180;
+
+    const a = Math.sin(Δφ/2) * Math.sin(Δφ/2) +
+              Math.cos(φ1) * Math.cos(φ2) *
+              Math.sin(Δλ/2) * Math.sin(Δλ/2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+
+    return R * c;
+  }, []);
+
+  // 方角を計算（度）
+  const calculateBearing = useCallback((lat1: number, lon1: number, lat2: number, lon2: number): number => {
+    const φ1 = lat1 * Math.PI / 180;
+    const φ2 = lat2 * Math.PI / 180;
+    const Δλ = (lon2 - lon1) * Math.PI / 180;
+
+    const y = Math.sin(Δλ) * Math.cos(φ2);
+    const x = Math.cos(φ1) * Math.sin(φ2) - Math.sin(φ1) * Math.cos(φ2) * Math.cos(Δλ);
+
+    const θ = Math.atan2(y, x);
+    return (θ * 180 / Math.PI + 360) % 360;
+  }, []);
+
+  // 方角を文字列に変換
+  const bearingToDirection = useCallback((bearing: number): string => {
+    const directions = ['北', '北東', '東', '南東', '南', '南西', '西', '北西'];
+    const index = Math.round(bearing / 45) % 8;
+    return directions[index];
+  }, []);
+
+  // Phase 3: 高度なユーティリティ関数
+  // 歩行速度を計算（km/h）
+  const calculateSpeed = useCallback((distance: number, timeMs: number): number => {
+    if (timeMs === 0) return 0;
+    const timeHours = timeMs / (1000 * 60 * 60);
+    const distanceKm = distance / 1000;
+    return distanceKm / timeHours;
+  }, []);
+
+  // 経路の総距離を計算
+  const calculateTotalPathDistance = useCallback((path: GPSPosition[]): number => {
+    if (path.length < 2) return 0;
+    let totalDistance = 0;
+    for (let i = 1; i < path.length; i++) {
+      totalDistance += calculateDistance(
+        path[i-1].latitude, path[i-1].longitude,
+        path[i].latitude, path[i].longitude
+      );
+    }
+    return totalDistance;
+  }, [calculateDistance]);
+
+  // 到着時刻を予測
+  const predictArrivalTime = useCallback((distance: number, speed: number): Date => {
+    const timeHours = distance / 1000 / speed; // 距離(km) / 速度(km/h)
+    const timeMs = timeHours * 60 * 60 * 1000;
+    return new Date(Date.now() + timeMs);
+  }, []);
+
+  // 歩行統計を計算
+  const calculateWalkingStats = useCallback((sessions: WalkingSession[]): WalkingStats => {
+    if (sessions.length === 0) {
+      return {
+        totalSessions: 0,
+        totalDistance: 0,
+        totalTime: 0,
+        averageSpeed: 0,
+        averageAccuracy: 0
+      };
+    }
+
+    const totalDistance = sessions.reduce((sum, session) => sum + session.totalDistance, 0);
+    const totalTime = sessions.reduce((sum, session) => sum + session.duration, 0);
+    const averageSpeed = sessions.reduce((sum, session) => sum + session.averageSpeed, 0) / sessions.length;
+    
+    // 平均精度を計算（全ポイントの精度の平均）
+    let totalAccuracy = 0;
+    let totalPoints = 0;
+    sessions.forEach(session => {
+      session.path.forEach(point => {
+        totalAccuracy += point.accuracy;
+        totalPoints++;
+      });
+    });
+    const averageAccuracy = totalPoints > 0 ? totalAccuracy / totalPoints : 0;
+
+    return {
+      totalSessions: sessions.length,
+      totalDistance,
+      totalTime,
+      averageSpeed,
+      averageAccuracy
+    };
+  }, []);
+
+  // 現在地取得
+  const getCurrentPosition = useCallback((): Promise<GPSPosition> => {
+    return new Promise((resolve, reject) => {
+      if (!navigator.geolocation) {
+        reject(new Error('お使いのブラウザではGPS機能がサポートされていません'));
+        return;
+      }
+
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          const gpsPosition: GPSPosition = {
+            latitude: position.coords.latitude,
+            longitude: position.coords.longitude,
+            accuracy: position.coords.accuracy,
+            timestamp: position.timestamp
+          };
+          resolve(gpsPosition);
+        },
+        (error) => {
+          let errorMessage = 'GPS位置の取得に失敗しました';
+          switch (error.code) {
+            case error.PERMISSION_DENIED:
+              errorMessage = '位置情報へのアクセスが拒否されました。ブラウザの設定で位置情報を許可してください。';
+              break;
+            case error.POSITION_UNAVAILABLE:
+              errorMessage = '位置情報が利用できません。';
+              break;
+            case error.TIMEOUT:
+              errorMessage = '位置情報の取得がタイムアウトしました。';
+              break;
+          }
+          reject(new Error(errorMessage));
+        },
+        gpsOptions
+      );
+    });
+  }, []);
+
+  // 現在地を取得して地図に表示
+  const handleGetCurrentLocation = useCallback(async () => {
+    setGpsLoading(true);
+    setGpsError(null);
+
+    try {
+      const position = await getCurrentPosition();
+      setCurrentLocation(position);
+      setGpsEnabled(true);
+      console.log('現在地を取得しました:', position);
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : '不明なエラーが発生しました';
+      setGpsError(errorMessage);
+      console.error('GPS エラー:', errorMessage);
+    } finally {
+      setGpsLoading(false);
+    }
+  }, [getCurrentPosition]);
+
+  // 現在地を出発地点に設定
+  const useCurrentLocationAsStart = useCallback(async () => {
+    setGpsLoading(true);
+    setGpsError(null);
+
+    try {
+      const position = await getCurrentPosition();
+      setCurrentLocation(position);
+      setStartPoint([position.latitude, position.longitude]);
+      setGpsEnabled(true);
+      setRoute([]);
+      setRouteInfo(null);
+      console.log('現在地を出発地点に設定しました:', position);
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : '不明なエラーが発生しました';
+      setGpsError(errorMessage);
+      console.error('GPS エラー:', errorMessage);
+    } finally {
+      setGpsLoading(false);
+    }
+  }, [getCurrentPosition, setStartPoint, setRoute, setRouteInfo]);
+
+  // 現在地を終了地点に設定
+  const useCurrentLocationAsEnd = useCallback(async () => {
+    setGpsLoading(true);
+    setGpsError(null);
+
+    try {
+      const position = await getCurrentPosition();
+      setCurrentLocation(position);
+      setEndPoint([position.latitude, position.longitude]);
+      setGpsEnabled(true);
+      setRoute([]);
+      setRouteInfo(null);
+      console.log('現在地を終了地点に設定しました:', position);
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : '不明なエラーが発生しました';
+      setGpsError(errorMessage);
+      console.error('GPS エラー:', errorMessage);
+    } finally {
+      setGpsLoading(false);
+    }
+  }, [getCurrentPosition, setEndPoint, setRoute, setRouteInfo]);
+
+  // Phase 2: リアルタイム追跡機能
+  // 位置追跡を開始
+  const startTracking = useCallback(() => {
+    if (!navigator.geolocation) {
+      setGpsError('お使いのブラウザではGPS機能がサポートされていません');
+      return;
+    }
+
+    const id = navigator.geolocation.watchPosition(
+      (position) => {
+        const newPosition: GPSPosition = {
+          latitude: position.coords.latitude,
+          longitude: position.coords.longitude,
+          accuracy: position.coords.accuracy,
+          timestamp: position.timestamp
+        };
+
+        setCurrentLocation(newPosition);
+        setLocationHistory(prev => [...prev.slice(-99), newPosition]); // 最新100件を保持
+
+        // Phase 3: 歩行セッションを更新
+        if (currentSession) {
+          const updatedSession = {
+            ...currentSession,
+            path: [...currentSession.path, newPosition],
+            totalDistance: calculateTotalPathDistance([...currentSession.path, newPosition]),
+            duration: Date.now() - currentSession.startTime
+          };
+          updatedSession.averageSpeed = calculateSpeed(updatedSession.totalDistance, updatedSession.duration);
+          setCurrentSession(updatedSession);
+        }
+
+        // 目的地までの距離を計算
+        if (endPoint && navigationMode) {
+          const distance = calculateDistance(
+            newPosition.latitude,
+            newPosition.longitude,
+            endPoint[0],
+            endPoint[1]
+          );
+          setDistanceToDestination(distance);
+
+          // Phase 3: 到着時刻を更新
+          if (currentSession && currentSession.averageSpeed > 0) {
+            const eta = predictArrivalTime(distance, currentSession.averageSpeed);
+            setEstimatedArrivalTime(eta);
+          }
+
+          // 50m以内で到着通知
+          if (distance <= 50) {
+            console.log('🎯 目的地に到着しました！');
+            
+            // 歩行セッションを終了
+            if (currentSession) {
+              const endTime = Date.now();
+              const duration = endTime - currentSession.startTime;
+              const totalDistance = calculateTotalPathDistance([...currentSession.path, newPosition]);
+              const averageSpeed = calculateSpeed(totalDistance, duration);
+
+              const completedSession: WalkingSession = {
+                ...currentSession,
+                endTime,
+                endLocation: newPosition,
+                path: [...currentSession.path, newPosition],
+                totalDistance,
+                averageSpeed,
+                duration
+              };
+
+              setWalkingSessions(prev => [...prev, completedSession]);
+              setCurrentSession(null);
+            }
+            
+            // 到着通知（ブラウザ通知またはアラート）
+            if ('Notification' in window && Notification.permission === 'granted') {
+              new Notification('🎯 目的地到着', {
+                body: '目的地の50m以内に到着しました！',
+                icon: '/favicon.ico'
+              });
+            } else {
+              alert('🎯 目的地に到着しました！');
+            }
+          }
+        }
+
+        console.log('位置更新:', newPosition);
+      },
+      (error) => {
+        console.error('位置追跡エラー:', error);
+        setGpsError('位置追跡中にエラーが発生しました');
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 15000,
+        maximumAge: 5000
+      }
+    );
+
+    setWatchId(id);
+    setIsTracking(true);
+    setGpsEnabled(true);
+    console.log('位置追跡を開始しました');
+  }, [endPoint, navigationMode, calculateDistance, currentSession, calculateTotalPathDistance, calculateSpeed, predictArrivalTime]);
+
+  // 位置追跡を停止
+  const stopTracking = useCallback(() => {
+    if (watchId !== null) {
+      navigator.geolocation.clearWatch(watchId);
+      setWatchId(null);
+    }
+    setIsTracking(false);
+    console.log('位置追跡を停止しました');
+  }, [watchId]);
+
+  // Phase 3: 歩行セッション管理
+  // 歩行セッションを開始
+  const startWalkingSession = useCallback((startLocation: GPSPosition) => {
+    const sessionId = `session_${Date.now()}`;
+    const newSession: WalkingSession = {
+      id: sessionId,
+      startTime: Date.now(),
+      startLocation,
+      path: [startLocation],
+      totalDistance: 0,
+      averageSpeed: 0,
+      duration: 0
+    };
+    setCurrentSession(newSession);
+    console.log('歩行セッション開始:', sessionId);
+  }, []);
+
+  // 歩行セッションを終了
+  const endWalkingSession = useCallback((endLocation: GPSPosition) => {
+    if (!currentSession) return;
+
+    const endTime = Date.now();
+    const duration = endTime - currentSession.startTime;
+    const totalDistance = calculateTotalPathDistance([...currentSession.path, endLocation]);
+    const averageSpeed = calculateSpeed(totalDistance, duration);
+
+    const completedSession: WalkingSession = {
+      ...currentSession,
+      endTime,
+      endLocation,
+      path: [...currentSession.path, endLocation],
+      totalDistance,
+      averageSpeed,
+      duration
+    };
+
+    setWalkingSessions(prev => [...prev, completedSession]);
+    setCurrentSession(null);
+    
+    // 統計を更新
+    const updatedSessions = [...walkingSessions, completedSession];
+    const newStats = calculateWalkingStats(updatedSessions);
+    setWalkingStats(newStats);
+    
+    // 平均歩行速度を更新
+    if (newStats.averageSpeed > 0) {
+      setAverageWalkingSpeed(newStats.averageSpeed);
+    }
+
+    console.log('歩行セッション終了:', completedSession);
+  }, [currentSession, walkingSessions, calculateTotalPathDistance, calculateSpeed, calculateWalkingStats]);
+
+  // ナビゲーションを開始
+  const startNavigation = useCallback(async () => {
+    if (!endPoint) {
+      alert('まず目的地を設定してください');
+      return;
+    }
+
+    // 通知許可をリクエスト
+    if ('Notification' in window && Notification.permission === 'default') {
+      await Notification.requestPermission();
+    }
+
+    setNavigationMode(true);
+    startTracking();
+    
+    // 現在地がある場合は歩行セッションを開始
+    if (currentLocation) {
+      startWalkingSession(currentLocation);
+      
+      // 到着時刻を予測
+      if (distanceToDestination) {
+        const eta = predictArrivalTime(distanceToDestination, averageWalkingSpeed);
+        setEstimatedArrivalTime(eta);
+      }
+    }
+    
+    console.log('ナビゲーションを開始しました');
+  }, [endPoint, startTracking, currentLocation, startWalkingSession, distanceToDestination, averageWalkingSpeed, predictArrivalTime]);
+
+  // ナビゲーションを停止
+  const stopNavigation = useCallback(() => {
+    setNavigationMode(false);
+    stopTracking();
+    setDistanceToDestination(null);
+    setEstimatedArrivalTime(null);
+    
+    // 進行中の歩行セッションがあれば終了
+    if (currentSession && currentLocation) {
+      endWalkingSession(currentLocation);
+    }
+    
+    console.log('ナビゲーションを停止しました');
+  }, [stopTracking, currentSession, currentLocation, endWalkingSession]);
+
+  // コンポーネントのクリーンアップ
+  useEffect(() => {
+    return () => {
+      if (watchId !== null) {
+        navigator.geolocation.clearWatch(watchId);
+      }
+    };
+  }, [watchId]);
 
   // ルート計算
   const calculateRoute = useCallback(async (forceDijkstra = false) => {
@@ -595,6 +1087,367 @@ const App = () => {
                 </button>
               </div>
 
+              {/* GPS機能 */}
+              <div style={{
+                display: 'flex',
+                gap: '12px',
+                flexWrap: 'wrap',
+                marginTop: '16px'
+              }}>
+                <button
+                  onClick={handleGetCurrentLocation}
+                  disabled={gpsLoading}
+                  style={{
+                    padding: '12px 16px',
+                    backgroundColor: gpsEnabled ? '#22c55e' : '#3b82f6',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '8px',
+                    fontSize: '14px',
+                    fontWeight: '600',
+                    cursor: gpsLoading ? 'not-allowed' : 'pointer',
+                    transition: 'all 0.2s ease',
+                    fontFamily: 'inherit',
+                    opacity: gpsLoading ? 0.6 : 1,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px'
+                  }}
+                  onMouseEnter={(e) => {
+                    if (!gpsLoading) {
+                      e.currentTarget.style.transform = 'translateY(-1px)';
+                      e.currentTarget.style.boxShadow = '0 6px 16px rgba(59, 130, 246, 0.3)';
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    if (!gpsLoading) {
+                      e.currentTarget.style.transform = 'translateY(0)';
+                      e.currentTarget.style.boxShadow = 'none';
+                    }
+                  }}
+                >
+                  {gpsLoading ? '📍 取得中...' : (gpsEnabled ? '📍 現在地更新' : '📍 現在地取得')}
+                </button>
+
+                <button
+                  onClick={useCurrentLocationAsStart}
+                  disabled={gpsLoading}
+                  style={{
+                    padding: '12px 16px',
+                    backgroundColor: '#10b981',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '8px',
+                    fontSize: '14px',
+                    fontWeight: '600',
+                    cursor: gpsLoading ? 'not-allowed' : 'pointer',
+                    transition: 'all 0.2s ease',
+                    fontFamily: 'inherit',
+                    opacity: gpsLoading ? 0.6 : 1
+                  }}
+                  onMouseEnter={(e) => {
+                    if (!gpsLoading) {
+                      e.currentTarget.style.transform = 'translateY(-1px)';
+                      e.currentTarget.style.boxShadow = '0 6px 16px rgba(16, 185, 129, 0.3)';
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    if (!gpsLoading) {
+                      e.currentTarget.style.transform = 'translateY(0)';
+                      e.currentTarget.style.boxShadow = 'none';
+                    }
+                  }}
+                >
+                  🚀 ここから出発
+                </button>
+
+                <button
+                  onClick={useCurrentLocationAsEnd}
+                  disabled={gpsLoading}
+                  style={{
+                    padding: '12px 16px',
+                    backgroundColor: '#f59e0b',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '8px',
+                    fontSize: '14px',
+                    fontWeight: '600',
+                    cursor: gpsLoading ? 'not-allowed' : 'pointer',
+                    transition: 'all 0.2s ease',
+                    fontFamily: 'inherit',
+                    opacity: gpsLoading ? 0.6 : 1
+                  }}
+                  onMouseEnter={(e) => {
+                    if (!gpsLoading) {
+                      e.currentTarget.style.transform = 'translateY(-1px)';
+                      e.currentTarget.style.boxShadow = '0 6px 16px rgba(245, 158, 11, 0.3)';
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    if (!gpsLoading) {
+                      e.currentTarget.style.transform = 'translateY(0)';
+                      e.currentTarget.style.boxShadow = 'none';
+                    }
+                  }}
+                >
+                  🎯 ここへ到着
+                </button>
+              </div>
+
+              {/* Phase 2: ナビゲーション機能 */}
+              <div style={{
+                display: 'flex',
+                gap: '12px',
+                flexWrap: 'wrap',
+                marginTop: '16px'
+              }}>
+                {!navigationMode ? (
+                  <button
+                    onClick={startNavigation}
+                    disabled={!endPoint || gpsLoading}
+                    style={{
+                      padding: '14px 20px',
+                      backgroundColor: endPoint ? '#8b5cf6' : '#9ca3af',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: '12px',
+                      fontSize: '16px',
+                      fontWeight: '600',
+                      cursor: endPoint && !gpsLoading ? 'pointer' : 'not-allowed',
+                      transition: 'all 0.2s ease',
+                      fontFamily: 'inherit',
+                      opacity: endPoint && !gpsLoading ? 1 : 0.6,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '8px'
+                    }}
+                    onMouseEnter={(e) => {
+                      if (endPoint && !gpsLoading) {
+                        e.currentTarget.style.transform = 'translateY(-2px)';
+                        e.currentTarget.style.boxShadow = '0 8px 20px rgba(139, 92, 246, 0.4)';
+                      }
+                    }}
+                    onMouseLeave={(e) => {
+                      if (endPoint && !gpsLoading) {
+                        e.currentTarget.style.transform = 'translateY(0)';
+                        e.currentTarget.style.boxShadow = 'none';
+                      }
+                    }}
+                  >
+                    🧭 ナビゲーション開始
+                  </button>
+                ) : (
+                  <button
+                    onClick={stopNavigation}
+                    style={{
+                      padding: '14px 20px',
+                      backgroundColor: '#dc2626',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: '12px',
+                      fontSize: '16px',
+                      fontWeight: '600',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s ease',
+                      fontFamily: 'inherit',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '8px'
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.transform = 'translateY(-2px)';
+                      e.currentTarget.style.boxShadow = '0 8px 20px rgba(220, 38, 38, 0.4)';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.transform = 'translateY(0)';
+                      e.currentTarget.style.boxShadow = 'none';
+                    }}
+                  >
+                    ⏹️ ナビゲーション停止
+                  </button>
+                )}
+
+                {isTracking && !navigationMode && (
+                  <button
+                    onClick={stopTracking}
+                    style={{
+                      padding: '12px 16px',
+                      backgroundColor: '#6b7280',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: '8px',
+                      fontSize: '14px',
+                      fontWeight: '600',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s ease',
+                      fontFamily: 'inherit'
+                    }}
+                  >
+                    📍 追跡停止
+                  </button>
+                )}
+              </div>
+
+              {/* GPSエラー表示 */}
+              {gpsError && (
+                <div style={{
+                  backgroundColor: '#fef2f2',
+                  border: '1px solid #fecaca',
+                  borderRadius: '8px',
+                  padding: '12px',
+                  marginTop: '12px',
+                  color: '#dc2626',
+                  fontSize: '14px'
+                }}>
+                  <strong>⚠️ GPS エラー:</strong> {gpsError}
+                </div>
+              )}
+
+              {/* GPS状態表示 */}
+              {currentLocation && gpsEnabled && (
+                <div style={{
+                  backgroundColor: '#f0fdf4',
+                  border: '1px solid #bbf7d0',
+                  borderRadius: '8px',
+                  padding: '12px',
+                  marginTop: '12px',
+                  color: '#166534',
+                  fontSize: '14px'
+                }}>
+                  <strong>📍 現在地:</strong> 精度 ±{Math.round(currentLocation.accuracy)}m
+                  {isTracking && <span style={{ marginLeft: '8px', color: '#059669' }}>🔄 追跡中</span>}
+                </div>
+              )}
+
+              {/* Phase 2: ナビゲーション情報表示 */}
+              {navigationMode && currentLocation && endPoint && (
+                <div style={{
+                  backgroundColor: '#eff6ff',
+                  border: '1px solid #bfdbfe',
+                  borderRadius: '12px',
+                  padding: '16px',
+                  marginTop: '16px',
+                  color: '#1e40af'
+                }}>
+                  <h4 style={{
+                    margin: '0 0 12px 0',
+                    fontSize: '16px',
+                    fontWeight: '600',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px'
+                  }}>
+                    🧭 ナビゲーション情報
+                  </h4>
+                  
+                  {distanceToDestination !== null && (
+                    <div style={{ fontSize: '14px', lineHeight: '1.5' }}>
+                      <div style={{ marginBottom: '8px' }}>
+                        <strong>目的地まで:</strong> {
+                          distanceToDestination < 1000 
+                            ? `${Math.round(distanceToDestination)}m`
+                            : `${(distanceToDestination / 1000).toFixed(1)}km`
+                        }
+                      </div>
+                      
+                      <div style={{ marginBottom: '8px' }}>
+                        <strong>方角:</strong> {
+                          bearingToDirection(calculateBearing(
+                            currentLocation.latitude,
+                            currentLocation.longitude,
+                            endPoint[0],
+                            endPoint[1]
+                          ))
+                        }方向
+                      </div>
+                      
+                      {distanceToDestination <= 100 && (
+                        <div style={{
+                          backgroundColor: '#fef3c7',
+                          border: '1px solid #fbbf24',
+                          borderRadius: '6px',
+                          padding: '8px',
+                          marginTop: '8px',
+                          color: '#92400e',
+                          fontSize: '13px',
+                          fontWeight: '600'
+                        }}>
+                          🎯 目的地が近づいています！
+                        </div>
+                      )}
+
+                      {/* Phase 3: 到着時刻予測 */}
+                      {estimatedArrivalTime && (
+                        <div style={{ marginTop: '8px' }}>
+                          <strong>予想到着時刻:</strong> {estimatedArrivalTime.toLocaleTimeString('ja-JP', {
+                            hour: '2-digit',
+                            minute: '2-digit'
+                          })}
+                        </div>
+                      )}
+
+                      {/* Phase 3: 現在セッション情報 */}
+                      {currentSession && (
+                        <div style={{
+                          backgroundColor: '#f0f9ff',
+                          border: '1px solid #7dd3fc',
+                          borderRadius: '6px',
+                          padding: '8px',
+                          marginTop: '8px',
+                          fontSize: '13px'
+                        }}>
+                          <div><strong>📊 セッション情報</strong></div>
+                          <div>距離: {(currentSession.totalDistance / 1000).toFixed(2)}km</div>
+                          <div>時間: {Math.round(currentSession.duration / 60000)}分</div>
+                          <div>平均速度: {currentSession.averageSpeed.toFixed(1)}km/h</div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Phase 3: 歩行統計表示 */}
+              {walkingStats && walkingStats.totalSessions > 0 && (
+                <div style={{
+                  backgroundColor: '#f8fafc',
+                  border: '1px solid #e2e8f0',
+                  borderRadius: '12px',
+                  padding: '16px',
+                  marginTop: '16px',
+                  color: '#475569'
+                }}>
+                  <h4 style={{
+                    margin: '0 0 12px 0',
+                    fontSize: '16px',
+                    fontWeight: '600',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px'
+                  }}>
+                    📊 歩行統計
+                  </h4>
+                  
+                  <div style={{ fontSize: '14px', lineHeight: '1.5' }}>
+                    <div style={{ marginBottom: '6px' }}>
+                      <strong>総セッション数:</strong> {walkingStats.totalSessions}回
+                    </div>
+                    <div style={{ marginBottom: '6px' }}>
+                      <strong>総距離:</strong> {(walkingStats.totalDistance / 1000).toFixed(2)}km
+                    </div>
+                    <div style={{ marginBottom: '6px' }}>
+                      <strong>総時間:</strong> {Math.round(walkingStats.totalTime / 60000)}分
+                    </div>
+                    <div style={{ marginBottom: '6px' }}>
+                      <strong>平均速度:</strong> {walkingStats.averageSpeed.toFixed(1)}km/h
+                    </div>
+                    <div>
+                      <strong>平均GPS精度:</strong> ±{Math.round(walkingStats.averageAccuracy)}m
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {routeInfo && (
                 <div style={{
                   backgroundColor: 'white',
@@ -889,6 +1742,35 @@ const App = () => {
             <Marker position={endPoint} icon={endIcon}>
               <Popup>終了地点</Popup>
             </Marker>
+          )}
+
+          {/* 現在地マーカー */}
+          {currentLocation && gpsEnabled && (
+            <Marker 
+              position={[currentLocation.latitude, currentLocation.longitude]} 
+              icon={currentLocationIcon}
+            >
+              <Popup>
+                <div>
+                  <strong>現在地</strong><br/>
+                  精度: ±{Math.round(currentLocation.accuracy)}m<br/>
+                  緯度: {currentLocation.latitude.toFixed(6)}<br/>
+                  経度: {currentLocation.longitude.toFixed(6)}<br/>
+                  {isTracking && <><br/><strong>🔄 追跡中</strong></>}
+                  {navigationMode && <><br/><strong>🧭 ナビゲーション中</strong></>}
+                </div>
+              </Popup>
+            </Marker>
+          )}
+
+          {/* Phase 2: 位置履歴の軌跡 */}
+          {isTracking && locationHistory.length > 1 && (
+            <Polyline 
+              positions={locationHistory.map(pos => [pos.latitude, pos.longitude])}
+              color="#3b82f6"
+              weight={4}
+              opacity={0.7}
+            />
           )}
 
           {/* Buildings */}

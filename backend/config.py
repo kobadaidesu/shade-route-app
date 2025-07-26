@@ -9,7 +9,7 @@ from typing import Dict, List, Tuple
 class APIConfig:
     """API関連の設定"""
     host: str = "0.0.0.0"
-    port: int = 8006
+    port: int = 8007
     title: str = "Shade Route API"
     version: str = "2.0.0"
     
@@ -21,7 +21,7 @@ class APIConfig:
     
     def __post_init__(self):
         if self.cors_origins is None:
-            self.cors_origins = ["http://localhost:3000", "http://localhost:5173", "http://localhost:5174"]
+            self.cors_origins = ["http://localhost:3000", "http://localhost:5173", "http://localhost:5174", "http://localhost:5176"]
         if self.cors_allow_methods is None:
             self.cors_allow_methods = ["GET", "POST", "PUT", "DELETE"]
         if self.cors_allow_headers is None:
