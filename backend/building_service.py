@@ -42,14 +42,15 @@ class BuildingService:
         return hashlib.md5(bbox_str.encode()).hexdigest()
     
     def _create_overpass_query(self, bbox: Tuple[float, float, float, float]) -> str:
-        """Overpassクエリを生成"""
+        """Overpassクエリを生成（最適化版 - 新宿区全域対応）"""
         return f"""
-        [out:json][timeout:{performance_config.external_api_timeout}];
+        [out:json][timeout:{performance_config.external_api_timeout}][maxsize:1073741824];
         (
           way[building]({bbox[0]},{bbox[1]},{bbox[2]},{bbox[3]});
           relation[building]({bbox[0]},{bbox[1]},{bbox[2]},{bbox[3]});
+          way[building:part]({bbox[0]},{bbox[1]},{bbox[2]},{bbox[3]});
         );
-        out geom;
+        out geom {performance_config.max_buildings_per_request};
         """
     
     async def _fetch_from_overpass(self, query: str, url: str) -> Optional[Dict]:

@@ -166,12 +166,17 @@ const App = () => {
   const [selectedTime, setSelectedTime] = useState('');
   const [autoUpdate, setAutoUpdate] = useState(false);
   const [hideOSMIcons, setHideOSMIcons] = useState(true);
+  const [showBuildings, setShowBuildings] = useState(true);
   const [customNodes, setCustomNodes] = useState<CustomNode[]>([]);
   const [customNodeMode, setCustomNodeMode] = useState(false);
 
   // UI状態
   const [bottomSheetState, setBottomSheetState] = useState<'collapsed' | 'peek' | 'expanded'>('peek');
   const [activeTab, setActiveTab] = useState<'route' | 'nodes' | 'settings'>('route');
+  const [isBottomSheetVisible, setIsBottomSheetVisible] = useState(true);
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragStartY, setDragStartY] = useState(0);
+  const [dragCurrentY, setDragCurrentY] = useState(0);
 
   // ルート計算
   const calculateRoute = useCallback(async (forceDijkstra = false) => {
@@ -374,6 +379,79 @@ const App = () => {
     setPendingNodeLocation(null);
   }, []);
 
+  // スライド操作のハンドラー
+  const handleTouchStart = useCallback((e: React.TouchEvent) => {
+    e.stopPropagation(); // イベントバブリングを防ぐ
+    setIsDragging(true);
+    setDragStartY(e.touches[0].clientY);
+    setDragCurrentY(e.touches[0].clientY);
+  }, []);
+
+  const handleTouchMove = useCallback((e: React.TouchEvent) => {
+    if (!isDragging) return;
+    e.preventDefault(); // デフォルトのスクロール動作を防ぐ
+    e.stopPropagation(); // イベントバブリングを防ぐ
+    setDragCurrentY(e.touches[0].clientY);
+  }, [isDragging]);
+
+  const handleTouchEnd = useCallback((e: React.TouchEvent) => {
+    if (!isDragging) return;
+    e.stopPropagation(); // イベントバブリングを防ぐ
+    setIsDragging(false);
+    
+    const deltaY = dragCurrentY - dragStartY;
+    const threshold = 50; // 50px以上のドラッグで状態変更
+    
+    if (deltaY > threshold) {
+      // 下にドラッグ - 縮小
+      if (bottomSheetState === 'expanded') {
+        setBottomSheetState('peek');
+      } else if (bottomSheetState === 'peek') {
+        setBottomSheetState('collapsed');
+      }
+    } else if (deltaY < -threshold) {
+      // 上にドラッグ - 拡大
+      if (bottomSheetState === 'collapsed') {
+        setBottomSheetState('peek');
+      } else if (bottomSheetState === 'peek') {
+        setBottomSheetState('expanded');
+      }
+    }
+  }, [isDragging, dragCurrentY, dragStartY, bottomSheetState]);
+
+  const handleMouseStart = useCallback((e: React.MouseEvent) => {
+    setIsDragging(true);
+    setDragStartY(e.clientY);
+    setDragCurrentY(e.clientY);
+  }, []);
+
+  const handleMouseMove = useCallback((e: React.MouseEvent) => {
+    if (!isDragging) return;
+    setDragCurrentY(e.clientY);
+  }, [isDragging]);
+
+  const handleMouseEnd = useCallback(() => {
+    if (!isDragging) return;
+    setIsDragging(false);
+    
+    const deltaY = dragCurrentY - dragStartY;
+    const threshold = 50;
+    
+    if (deltaY > threshold) {
+      if (bottomSheetState === 'expanded') {
+        setBottomSheetState('peek');
+      } else if (bottomSheetState === 'peek') {
+        setBottomSheetState('collapsed');
+      }
+    } else if (deltaY < -threshold) {
+      if (bottomSheetState === 'collapsed') {
+        setBottomSheetState('peek');
+      } else if (bottomSheetState === 'peek') {
+        setBottomSheetState('expanded');
+      }
+    }
+  }, [isDragging, dragCurrentY, dragStartY, bottomSheetState]);
+
   // 初期化
   useEffect(() => {
     fetchBuildings();
@@ -382,7 +460,28 @@ const App = () => {
     // 現在時刻を設定
     const now = new Date();
     setSelectedTime(`${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`);
-  }, [fetchBuildings, fetchCustomNodes]);
+
+    // マウスイベントのグローバルハンドラー
+    const handleGlobalMouseMove = (e: MouseEvent) => {
+      if (isDragging) {
+        setDragCurrentY(e.clientY);
+      }
+    };
+
+    const handleGlobalMouseUp = () => {
+      if (isDragging) {
+        handleMouseEnd();
+      }
+    };
+
+    document.addEventListener('mousemove', handleGlobalMouseMove);
+    document.addEventListener('mouseup', handleGlobalMouseUp);
+
+    return () => {
+      document.removeEventListener('mousemove', handleGlobalMouseMove);
+      document.removeEventListener('mouseup', handleGlobalMouseUp);
+    };
+  }, [fetchBuildings, fetchCustomNodes, isDragging, handleMouseEnd]);
 
   // ルートポイントをLeafletのLatLng形式に変換
   const routeLatLngs = route.map(point => [point.latitude, point.longitude] as [number, number]);
@@ -418,80 +517,145 @@ const App = () => {
     switch (activeTab) {
       case 'route':
         return (
-          <div className="bottom-sheet-content">
-            <h3>🗺️ 日陰ルート</h3>
+          <div style={{ padding: '24px' }}>
+            <h2 style={{
+              fontSize: '24px',
+              fontWeight: '700',
+              color: '#1a202c',
+              marginBottom: '24px',
+              fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif'
+            }}>
+              日陰ルート
+            </h2>
             
-            <div style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
-              <button 
-                onClick={() => {
-                  calculateRoute(false);
-                }}
-                disabled={!startPoint || !endPoint || loading}
-                style={{
-                  flex: 1,
-                  padding: '12px',
-                  backgroundColor: loading ? '#ccc' : 'var(--primary-cool)',
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: '8px',
-                  cursor: loading ? 'not-allowed' : 'pointer'
-                }}
-              >
-                {loading ? '計算中...' : '🔍 ルート検索'}
-              </button>
-
-              <button 
-                onClick={() => {
-                  calculateRoute(true);
-                }}
-                disabled={!startPoint || !endPoint || loading}
-                style={{
-                  flex: 1,
-                  padding: '12px',
-                  backgroundColor: loading ? '#ccc' : '#ff9500',
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: '8px',
-                  cursor: loading ? 'not-allowed' : 'pointer'
-                }}
-              >
-                {loading ? '計算中...' : '🎯 ダイクストラ'}
-              </button>
-              
-              <button 
-                onClick={() => {
-                  setStartPoint(null);
-                  setEndPoint(null);
-                  setRoute([]);
-                  setRouteInfo(null);
-                }}
-                style={{
-                  padding: '12px 16px',
-                  backgroundColor: '#6c757d',
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: '8px',
-                  cursor: 'pointer'
-                }}
-              >
-                🗑️
-              </button>
-            </div>
-
-            {routeInfo && (
-              <div style={{ background: '#f5f5f5', padding: '16px', borderRadius: '8px' }}>
-                <h4>ルート情報</h4>
-                <div>📏 距離: {Math.round(routeInfo.total_distance)}m</div>
-                <div>⏱️ 時間: {routeInfo.estimated_time}分</div>
-                <div>🌳 日陰率: {Math.round(routeInfo.average_shade_ratio * 100)}%</div>
-                {routeInfo.uses_dijkstra && <div>🎯 ダイクストラ使用</div>}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: '12px' }}>
+                <button
+                  onClick={() => calculateRoute(true)}
+                  disabled={!startPoint || !endPoint || loading}
+                  style={{
+                    padding: '16px 20px',
+                    backgroundColor: (!startPoint || !endPoint || loading) ? '#e2e8f0' : '#3182ce',
+                    color: (!startPoint || !endPoint || loading) ? '#a0aec0' : 'white',
+                    border: 'none',
+                    borderRadius: '12px',
+                    fontSize: '16px',
+                    fontWeight: '600',
+                    cursor: (!startPoint || !endPoint || loading) ? 'not-allowed' : 'pointer',
+                    transition: 'all 0.2s ease',
+                    boxShadow: (!startPoint || !endPoint || loading) ? 'none' : '0 4px 12px rgba(49, 130, 206, 0.15)',
+                    transform: (!startPoint || !endPoint || loading) ? 'none' : 'translateY(0)',
+                    fontFamily: 'inherit'
+                  }}
+                  onMouseEnter={(e) => {
+                    if (!(!startPoint || !endPoint || loading)) {
+                      e.currentTarget.style.transform = 'translateY(-1px)';
+                      e.currentTarget.style.boxShadow = '0 6px 16px rgba(49, 130, 206, 0.2)';
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    if (!(!startPoint || !endPoint || loading)) {
+                      e.currentTarget.style.transform = 'translateY(0)';
+                      e.currentTarget.style.boxShadow = '0 4px 12px rgba(49, 130, 206, 0.15)';
+                    }
+                  }}
+                >
+                  {loading ? '計算中...' : '日陰ルート検索'}
+                </button>
+                
+                <button
+                  onClick={() => {
+                    setStartPoint(null);
+                    setEndPoint(null);
+                    setRoute([]);
+                    setRouteInfo(null);
+                  }}
+                  style={{
+                    padding: '16px 20px',
+                    backgroundColor: 'transparent',
+                    color: '#718096',
+                    border: '2px solid #e2e8f0',
+                    borderRadius: '12px',
+                    fontSize: '16px',
+                    fontWeight: '600',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s ease',
+                    fontFamily: 'inherit'
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.borderColor = '#cbd5e0';
+                    e.currentTarget.style.backgroundColor = '#f7fafc';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.borderColor = '#e2e8f0';
+                    e.currentTarget.style.backgroundColor = 'transparent';
+                  }}
+                >
+                  クリア
+                </button>
               </div>
-            )}
 
-            <div style={{ fontSize: '14px', color: '#666', marginTop: '12px' }}>
-              {!startPoint && <div>📍 開始地点をタップしてください</div>}
-              {startPoint && !endPoint && <div>🎯 終了地点をタップしてください</div>}
-              {startPoint && endPoint && <div style={{ color: '#22c55e' }}>✅ 両地点設定完了</div>}
+              {routeInfo && (
+                <div style={{
+                  backgroundColor: 'white',
+                  borderRadius: '16px',
+                  boxShadow: '0 4px 20px rgba(0, 0, 0, 0.08)',
+                  padding: '24px',
+                  border: '1px solid #f1f5f9'
+                }}>
+                  <h3 style={{
+                    fontSize: '18px',
+                    fontWeight: '600',
+                    color: '#2d3748',
+                    marginBottom: '20px',
+                    fontFamily: 'inherit'
+                  }}>
+                    ルート情報
+                  </h3>
+                  <div style={{ 
+                    display: 'grid', 
+                    gridTemplateColumns: 'repeat(3, 1fr)', 
+                    gap: '20px',
+                    marginBottom: '16px'
+                  }}>
+                    <div style={{ textAlign: 'center' }}>
+                      <div style={{ fontSize: '12px', color: '#718096', fontWeight: '500', marginBottom: '4px' }}>距離</div>
+                      <div style={{ fontSize: '24px', fontWeight: '700', color: '#38a169' }}>
+                        {Math.round(routeInfo.total_distance)}m
+                      </div>
+                    </div>
+                    <div style={{ textAlign: 'center' }}>
+                      <div style={{ fontSize: '12px', color: '#718096', fontWeight: '500', marginBottom: '4px' }}>時間</div>
+                      <div style={{ fontSize: '24px', fontWeight: '700', color: '#ed8936' }}>
+                        {routeInfo.estimated_time}分
+                      </div>
+                    </div>
+                    <div style={{ textAlign: 'center' }}>
+                      <div style={{ fontSize: '12px', color: '#718096', fontWeight: '500', marginBottom: '4px' }}>日陰率</div>
+                      <div style={{ fontSize: '24px', fontWeight: '700', color: '#319795' }}>
+                        {Math.round(routeInfo.average_shade_ratio * 100)}%
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              <div style={{
+                padding: '16px 20px',
+                borderRadius: '12px',
+                backgroundColor: !startPoint ? '#fffbeb' : 
+                               (startPoint && !endPoint) ? '#f0fff4' : '#eff6ff',
+                border: `2px solid ${!startPoint ? '#fed7aa' : 
+                                     (startPoint && !endPoint) ? '#9ae6b4' : '#bfdbfe'}`,
+                color: !startPoint ? '#c05621' : 
+                       (startPoint && !endPoint) ? '#276749' : '#1e40af',
+                fontWeight: '500',
+                fontSize: '14px'
+              }}>
+                {!startPoint && '開始地点をタップしてください'}
+                {startPoint && !endPoint && '終了地点をタップしてください'}
+                {startPoint && endPoint && '両地点設定完了 - ルート検索できます'}
+              </div>
             </div>
           </div>
         );
@@ -499,7 +663,14 @@ const App = () => {
       case 'nodes':
         return (
           <div className="bottom-sheet-content">
-            <h3>📍 カスタムノード</h3>
+            <h3 style={{
+              margin: '0 0 20px 0',
+              fontSize: '20px',
+              fontWeight: '600',
+              color: '#1a1a1a',
+              letterSpacing: '-0.3px',
+              fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans", Helvetica, Arial, sans-serif'
+            }}>カスタムノード</h3>
             <div style={{ marginBottom: '16px' }}>
               <button
                 onClick={() => setCustomNodeMode(!customNodeMode)}
@@ -553,7 +724,14 @@ const App = () => {
       case 'settings':
         return (
           <div className="bottom-sheet-content">
-            <h3>⚙️ 設定</h3>
+            <h3 style={{
+              margin: '0 0 20px 0',
+              fontSize: '20px',
+              fontWeight: '600',
+              color: '#1a1a1a',
+              letterSpacing: '-0.3px',
+              fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans", Helvetica, Arial, sans-serif'
+            }}>設定</h3>
             
             <div style={{ marginBottom: '24px' }}>
               <h4>移動手段</h4>
@@ -597,6 +775,37 @@ const App = () => {
               <label style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <input
                   type="checkbox"
+                  checked={showBuildings}
+                  onChange={(e) => {
+                    console.log('建物表示切り替え:', e.target.checked);
+                    setShowBuildings(e.target.checked);
+                  }}
+                />
+                建物を表示 (現在: {showBuildings ? 'ON' : 'OFF'})
+              </label>
+              
+              {/* テスト用ボタン */}
+              <div style={{ marginTop: '8px' }}>
+                <button 
+                  onClick={() => setShowBuildings(!showBuildings)}
+                  style={{
+                    padding: '8px 16px',
+                    backgroundColor: showBuildings ? '#ff4444' : '#44ff44',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '4px',
+                    cursor: 'pointer'
+                  }}
+                >
+                  {showBuildings ? '建物を隠す' : '建物を表示'}
+                </button>
+              </div>
+            </div>
+
+            <div style={{ marginBottom: '24px' }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <input
+                  type="checkbox"
                   checked={hideOSMIcons}
                   onChange={(e) => setHideOSMIcons(e.target.checked)}
                 />
@@ -606,6 +815,8 @@ const App = () => {
 
             <div style={{ fontSize: '14px', color: '#666' }}>
               <div>建物データ: {buildings.length}件</div>
+              <div>建物表示状態: {showBuildings ? '表示中' : '非表示'}</div>
+              <div>描画される建物数: {showBuildings ? buildings.length : 0}件</div>
               <div>カスタムノード: {customNodes.length}件</div>
             </div>
           </div>
@@ -617,9 +828,36 @@ const App = () => {
   };
 
   return (
-    <div className="app-container">
+    <div 
+      className="app-container"
+      style={{
+        height: window.innerWidth <= 430 ? '100dvh' : '100vh', // モバイルは100dvh
+        width: '100vw',
+        display: 'flex',
+        flexDirection: 'column',
+        overflow: 'hidden',
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        margin: 0,
+        padding: 0,
+        background: '#000' // 黒い背景を確実に隠す
+      }}
+    >
       {/* Map Area */}
-      <div className="map-area">
+      <div 
+        className="map-area"
+        style={{
+          flex: 1,
+          position: 'relative',
+          width: '100%',
+          height: window.innerWidth <= 430 ? // モバイル判定
+            'calc(100dvh - 56px)' : // モバイルは常にナビ分確保
+            'calc(100vh - 56px)', // PC
+          marginBottom: '0',
+          background: '#f0f0f0' // 地図の背景色を設定
+        }}
+      >
         <MapContainer
           center={[35.6917, 139.7036]} // 新宿駅
           zoom={14}
@@ -654,7 +892,9 @@ const App = () => {
           )}
 
           {/* Buildings */}
-          {buildings.map((building, index) => {
+          {(() => {
+            console.log('建物描画チェック - showBuildings:', showBuildings, 'buildings数:', buildings.length);
+            return showBuildings && buildings.map((building, index) => {
             if (building.geometry && building.geometry.type === 'Polygon') {
               const coordinates = building.geometry.coordinates[0].map(coord => [coord[1], coord[0]] as [number, number]);
               return (
@@ -677,7 +917,8 @@ const App = () => {
               );
             }
             return null;
-          })}
+          });
+          })()}
 
           {/* Custom Nodes */}
           {customNodes.map((node) => {
@@ -758,40 +999,255 @@ const App = () => {
       </div>
 
       {/* Bottom Sheet */}
-      <div className={`bottom-sheet ${bottomSheetState}`}>
-        <div className="bottom-sheet-handle" />
-        <div className="bottom-sheet-content">
-          {renderTabContent()}
+      {isBottomSheetVisible && (
+        <div 
+          className={`bottom-sheet ${bottomSheetState}`}
+          style={{
+            position: 'fixed',
+            left: 0,
+            right: 0,
+            bottom: '56px',
+            width: '100%',
+            zIndex: 999,
+            background: 'white',
+            borderRadius: '20px 20px 0 0',
+            boxShadow: '0 -4px 20px rgba(26, 26, 46, 0.5)',
+            transition: isDragging ? 'none' : 'transform 0.3s ease',
+            transform: (() => {
+              if (isDragging) {
+                const deltaY = dragCurrentY - dragStartY;
+                const baseTransform = bottomSheetState === 'collapsed' ? 'calc(100% - 80px)' :
+                                    bottomSheetState === 'peek' ? 'calc(100% - 200px)' :
+                                    '0';
+                return `translateY(${baseTransform}) translateY(${deltaY}px)`;
+              }
+              return bottomSheetState === 'collapsed' ? 'translateY(calc(100% - 80px))' :
+                     bottomSheetState === 'peek' ? 'translateY(calc(100% - 200px))' :
+                     'translateY(0)';
+            })(),
+            maxHeight: 'calc(100vh - 120px)'
+          }}
+        >
+          <div 
+            className="bottom-sheet-handle"
+            style={{
+              width: '100%',
+              height: '40px', // タッチエリアを拡大
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              cursor: isDragging ? 'grabbing' : 'grab',
+              margin: '0 0 16px 0',
+              padding: '12px 0'
+            }}
+            onTouchStart={handleTouchStart}
+            onTouchMove={handleTouchMove}
+            onTouchEnd={handleTouchEnd}
+            onMouseDown={handleMouseStart}
+            onClick={() => {
+              if (bottomSheetState === 'collapsed') {
+                setBottomSheetState('peek');
+              } else if (bottomSheetState === 'peek') {
+                setBottomSheetState('expanded');
+              } else {
+                setBottomSheetState('collapsed');
+              }
+            }}
+          >
+            <div style={{
+              width: '36px',
+              height: '4px',
+              background: '#ddd',
+              borderRadius: '2px'
+            }} />
+          </div>
+          <div 
+            className="bottom-sheet-content"
+            style={{
+              padding: '0 20px 20px',
+              maxHeight: bottomSheetState === 'expanded' ? '60vh' : '30vh',
+              overflowY: 'auto'
+            }}
+          >
+            {/* デバッグ情報 */}
+            <div style={{
+              backgroundColor: 'white',
+              border: '1px solid #e2e8f0',
+              borderRadius: '12px',
+              padding: '16px',
+              marginBottom: '16px',
+              boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)'
+            }}>
+              <div style={{
+                fontSize: '14px',
+                fontWeight: '600',
+                color: '#4a5568',
+                marginBottom: '12px'
+              }}>
+                Debug Info
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span style={{ fontSize: '12px', color: '#718096' }}>状態:</span>
+                  <span style={{
+                    backgroundColor: '#ebf8ff',
+                    color: '#3182ce',
+                    padding: '2px 8px',
+                    borderRadius: '6px',
+                    fontSize: '12px',
+                    fontWeight: '500'
+                  }}>
+                    {bottomSheetState}
+                  </span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span style={{ fontSize: '12px', color: '#718096' }}>ドラッグ:</span>
+                  <span style={{
+                    backgroundColor: isDragging ? '#f0fff4' : '#f7fafc',
+                    color: isDragging ? '#38a169' : '#718096',
+                    padding: '2px 8px',
+                    borderRadius: '6px',
+                    fontSize: '12px',
+                    fontWeight: '500'
+                  }}>
+                    {isDragging ? "Active" : "Inactive"}
+                  </span>
+                </div>
+                {isDragging && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span style={{ fontSize: '12px', color: '#718096' }}>移動量:</span>
+                    <span style={{
+                      fontSize: '12px',
+                      color: '#ed8936',
+                      fontFamily: 'Monaco, "Cascadia Code", monospace'
+                    }}>
+                      {dragCurrentY - dragStartY}px
+                    </span>
+                  </div>
+                )}
+              </div>
+            </div>
+            {renderTabContent()}
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Bottom Navigation */}
-      <nav className="bottom-nav">
-        <div 
-          className={`nav-item ${activeTab === 'route' ? 'active' : ''}`}
-          onClick={() => setActiveTab('route')}
-          style={{ cursor: 'pointer' }}
+      <div style={{
+        position: 'fixed',
+        bottom: 0,
+        left: 0,
+        right: 0,
+        backgroundColor: isBottomSheetVisible ? 'white' : 'rgba(255, 255, 255, 0.95)',
+        borderTop: isBottomSheetVisible ? '1px solid #e2e8f0' : 'none',
+        backdropFilter: isBottomSheetVisible ? 'none' : 'blur(12px)',
+        boxShadow: isBottomSheetVisible ? '0 -2px 8px rgba(0,0,0,0.1)' : '0 -1px 4px rgba(0,0,0,0.2)',
+        height: '64px',
+        zIndex: 1000,
+        display: 'flex'
+      }}>
+        <div style={{
+          flex: 1,
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          cursor: 'pointer',
+          color: activeTab === 'route' ? '#3182ce' : '#718096',
+          transition: 'all 0.2s ease',
+          borderRadius: '8px',
+          margin: '4px'
+        }}
+        onClick={() => {
+          if (activeTab === 'route' && isBottomSheetVisible) {
+            setIsBottomSheetVisible(false);
+          } else {
+            setActiveTab('route');
+            setIsBottomSheetVisible(true);
+            setBottomSheetState('peek');
+          }
+        }}
+        onMouseEnter={(e) => {
+          e.currentTarget.style.backgroundColor = '#ebf8ff';
+          e.currentTarget.style.color = '#3182ce';
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.backgroundColor = 'transparent';
+          e.currentTarget.style.color = activeTab === 'route' ? '#3182ce' : '#718096';
+        }}
         >
-          <div className="nav-icon">🗺️</div>
-          <div className="nav-label">ルート</div>
+          <div style={{ fontSize: '20px', marginBottom: '2px' }}>🗺️</div>
+          <div style={{ fontSize: '12px', fontWeight: '600' }}>ルート</div>
         </div>
-        <div 
-          className={`nav-item ${activeTab === 'nodes' ? 'active' : ''}`}
-          onClick={() => setActiveTab('nodes')}
-          style={{ cursor: 'pointer' }}
+        
+        <div style={{
+          flex: 1,
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          cursor: 'pointer',
+          color: activeTab === 'nodes' ? '#3182ce' : '#718096',
+          transition: 'all 0.2s ease',
+          borderRadius: '8px',
+          margin: '4px'
+        }}
+        onClick={() => {
+          if (activeTab === 'nodes' && isBottomSheetVisible) {
+            setIsBottomSheetVisible(false);
+          } else {
+            setActiveTab('nodes');
+            setIsBottomSheetVisible(true);
+            setBottomSheetState('peek');
+          }
+        }}
+        onMouseEnter={(e) => {
+          e.currentTarget.style.backgroundColor = '#ebf8ff';
+          e.currentTarget.style.color = '#3182ce';
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.backgroundColor = 'transparent';
+          e.currentTarget.style.color = activeTab === 'nodes' ? '#3182ce' : '#718096';
+        }}
         >
-          <div className="nav-icon">📍</div>
-          <div className="nav-label">ノード</div>
+          <div style={{ fontSize: '20px', marginBottom: '2px' }}>📍</div>
+          <div style={{ fontSize: '12px', fontWeight: '600' }}>ノード</div>
         </div>
-        <div 
-          className={`nav-item ${activeTab === 'settings' ? 'active' : ''}`}
-          onClick={() => setActiveTab('settings')}
-          style={{ cursor: 'pointer' }}
+        
+        <div style={{
+          flex: 1,
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          cursor: 'pointer',
+          color: activeTab === 'settings' ? '#3182ce' : '#718096',
+          transition: 'all 0.2s ease',
+          borderRadius: '8px',
+          margin: '4px'
+        }}
+        onClick={() => {
+          if (activeTab === 'settings' && isBottomSheetVisible) {
+            setIsBottomSheetVisible(false);
+          } else {
+            setActiveTab('settings');
+            setIsBottomSheetVisible(true);
+            setBottomSheetState('peek');
+          }
+        }}
+        onMouseEnter={(e) => {
+          e.currentTarget.style.backgroundColor = '#ebf8ff';
+          e.currentTarget.style.color = '#3182ce';
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.backgroundColor = 'transparent';
+          e.currentTarget.style.color = activeTab === 'settings' ? '#3182ce' : '#718096';
+        }}
         >
-          <div className="nav-icon">⚙️</div>
-          <div className="nav-label">設定</div>
+          <div style={{ fontSize: '20px', marginBottom: '2px' }}>⚙️</div>
+          <div style={{ fontSize: '12px', fontWeight: '600' }}>設定</div>
         </div>
-      </nav>
+      </div>
 
       {/* ノード追加ダイアログ */}
       {showNodeDialog && (
