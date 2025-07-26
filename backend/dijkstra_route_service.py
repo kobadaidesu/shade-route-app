@@ -20,7 +20,7 @@ class DijkstraRouteService:
     """ダイクストラ法によるルート探索サービス"""
     
     def __init__(self):
-        self.grid_size = 0.0001  # 約10m
+        self.grid_size = 0.0003  # 約30m（より大きなグリッドで直線的に）
         self.pathfinder_cache = {}
     
     def _generate_dijkstra_cache_key(self, request: RouteRequest) -> str:
@@ -45,15 +45,15 @@ class DijkstraRouteService:
         return (min_lat, min_lon, max_lat, max_lon)  # south, west, north, east
     
     def _calculate_shade_weights(self, transport_mode: TransportMode) -> Tuple[float, float]:
-        """交通手段に応じた重みを計算"""
+        """交通手段に応じた重みを計算（日陰を重視するため重み上げ）"""
         weight_configs = {
-            TransportMode.WALK: (0.8, 0.2),    # 歩行者は日陰を重視
-            TransportMode.RUN: (0.9, 0.1),     # ランニングは日陰を最重視
-            TransportMode.BIKE: (0.6, 0.4),    # 自転車は日陰と距離のバランス
-            TransportMode.CAR: (0.3, 0.7)      # 車は距離を重視
+            TransportMode.WALK: (0.6, 0.4),    # 歩行者は日陰を重視
+            TransportMode.RUN: (0.7, 0.3),     # ランニングは日陰を最重視
+            TransportMode.BIKE: (0.5, 0.5),    # 自転車は日陰と距離のバランス
+            TransportMode.CAR: (0.2, 0.8)      # 車は距離重視
         }
         
-        return weight_configs.get(transport_mode, (0.7, 0.3))
+        return weight_configs.get(transport_mode, (0.6, 0.4))
     
     def _grid_path_to_route_points(self, grid_path: List[GridCell], 
                                   time_str: str) -> List[RoutePoint]:
@@ -147,8 +147,16 @@ class DijkstraRouteService:
             if not grid_path:
                 raise ValueError("No path found using Dijkstra algorithm")
             
-            # パスをスムージング
-            smoothed_path = pathfinder.smooth_path(grid_path)
+            # パスをスムージング（より積極的に）
+            smoothed_path = pathfinder.smooth_path(grid_path, smoothing_factor=8)
+            
+            # さらにポイントを減らす（最大20ポイント）
+            if len(smoothed_path) > 20:
+                step = len(smoothed_path) // 20
+                reduced_path = [smoothed_path[i] for i in range(0, len(smoothed_path), step)]
+                if reduced_path[-1] != smoothed_path[-1]:
+                    reduced_path.append(smoothed_path[-1])
+                smoothed_path = reduced_path
             
             # ルートポイントに変換
             route_points = self._grid_path_to_route_points(smoothed_path, request.time)

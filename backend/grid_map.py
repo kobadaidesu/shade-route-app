@@ -166,8 +166,8 @@ class GridMap:
             base_shade = self._calculate_base_shade(cell.lon, cell.lat, time_str)
             total_shade = min(1.0, shadow_factor + base_shade)
             
-            # 日陰率をコストに変換（日陰が少ないほうが良い）
-            cell.shade_cost = 1.0 - total_shade  # 0.0-1.0、低いほど良い
+            # 日陰率をコストに変換（日陰が多いほうが良い = コストが低い）
+            cell.shade_cost = 1.0 - total_shade  # 日陰が多いほどコストが低い
             
         except Exception as e:
             logger.error(f"Error updating cell ({cell.x}, {cell.y}): {e}")
@@ -260,7 +260,9 @@ class DijkstraPathfinder:
                 
                 # コスト計算
                 distance_cost = self.grid_map.calculate_distance(current_cell, neighbor)
-                shade_cost = neighbor.shade_cost * 1000  # スケール調整
+                
+                # 日陰コストを距離と同じスケールに正規化（日陰効果を強化）
+                shade_cost = neighbor.shade_cost * distance_cost * 2.0  # 距離の最大200%の影響
                 
                 # 重み付きコスト
                 total_cost = (weight_distance * distance_cost + 
@@ -289,27 +291,53 @@ class DijkstraPathfinder:
         path.reverse()
         return path
     
-    def smooth_path(self, path: List[GridCell], smoothing_factor: int = 3) -> List[GridCell]:
-        """パスをスムージング"""
+    def smooth_path(self, path: List[GridCell], smoothing_factor: int = 5) -> List[GridCell]:
+        """パスをスムージング（より積極的に）"""
         if len(path) <= 2:
             return path
         
         smoothed = [path[0]]
+        i = 1
         
-        for i in range(1, len(path) - 1):
-            # 前後の点を考慮してスムージング
-            prev_cell = path[i-1]
+        while i < len(path) - 1:
             current_cell = path[i]
-            next_cell = path[i+1]
             
-            # 直線上にある場合はスキップ
-            if self._is_collinear(prev_cell, current_cell, next_cell):
-                continue
+            # より長い範囲で直線性をチェック
+            skip_count = 0
+            for j in range(i + 1, min(i + smoothing_factor, len(path))):
+                if self._can_skip_intermediate_points(smoothed[-1], path[j], path[i:j]):
+                    skip_count = j - i
             
-            smoothed.append(current_cell)
+            if skip_count > 0:
+                i += skip_count
+            else:
+                smoothed.append(current_cell)
+                i += 1
         
         smoothed.append(path[-1])
         return smoothed
+    
+    def _can_skip_intermediate_points(self, start: GridCell, end: GridCell, 
+                                    intermediate: List[GridCell]) -> bool:
+        """中間点をスキップできるかチェック"""
+        if not intermediate:
+            return True
+        
+        # 直線距離と実際の距離の比率をチェック
+        direct_distance = math.sqrt((end.x - start.x)**2 + (end.y - start.y)**2)
+        
+        if direct_distance == 0:
+            return True
+        
+        actual_distance = 0
+        current = start
+        for point in intermediate:
+            actual_distance += math.sqrt((point.x - current.x)**2 + (point.y - current.y)**2)
+            current = point
+        actual_distance += math.sqrt((end.x - current.x)**2 + (end.y - current.y)**2)
+        
+        # 実際の距離が直線距離の1.5倍以下ならスキップ可能
+        return actual_distance / direct_distance <= 1.5
     
     def _is_collinear(self, a: GridCell, b: GridCell, c: GridCell) -> bool:
         """3点が直線上にあるかチェック"""

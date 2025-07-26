@@ -41,8 +41,8 @@ class MapConfig:
     # 東京の境界ボックス (south, west, north, east)
     tokyo_bbox: Tuple[float, float, float, float] = (35.6, 139.6, 35.8, 139.8)
     
-    # 新宿エリアの境界ボックス（デフォルト）
-    shinjuku_bbox: Tuple[float, float, float, float] = (35.685, 139.695, 35.705, 139.715)
+    # 新宿エリアの境界ボックス（拡大版）- 左上・左下地域を含む
+    shinjuku_bbox: Tuple[float, float, float, float] = (35.680, 139.690, 35.710, 139.720)
     
     # HAL東京の座標
     hal_tokyo_location: Tuple[float, float] = (35.6948, 139.7039)
@@ -66,13 +66,13 @@ class PerformanceConfig:
     max_workers: int = 4
     
     # 外部API呼び出しのタイムアウト（秒）
-    external_api_timeout: int = 30
+    external_api_timeout: int = 90
     
     # リクエストの最大待機時間（秒）
-    max_request_timeout: int = 60
+    max_request_timeout: int = 150
     
-    # 建物データの最大取得数
-    max_buildings_per_request: int = 1000
+    # 建物データの最大取得数（拡大）
+    max_buildings_per_request: int = 2000
 
 @dataclass
 class TransportConfig:
