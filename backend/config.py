@@ -123,6 +123,14 @@ def load_config_from_env():
     
     if os.getenv("CORS_ORIGINS"):
         api_config.cors_origins = os.getenv("CORS_ORIGINS").split(",")
+    
+    # 本番環境用の追加設定
+    if os.getenv("RAILWAY_ENVIRONMENT"):
+        # Railway環境では全てのオリジンを許可（本番では適切に制限してください）
+        api_config.cors_origins = ["*"]
+        api_config.host = "0.0.0.0"
+        if os.getenv("PORT"):
+            api_config.port = int(os.getenv("PORT"))
 
 # 初期化時に環境変数を読み込む
 load_config_from_env()
