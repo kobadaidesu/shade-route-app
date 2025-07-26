@@ -1,0 +1,73 @@
+/* OSMタイルのデフォルトアイコンを非表示にするCSS */
+
+/* OSMタイル上のアイコンを非表示にするフィルター */
+.leaflet-tile {
+  /* OSMタイル全体にフィルターを適用してアイコンを除去 */
+  filter: hue-rotate(0deg) saturate(1) brightness(1) contrast(1);
+}
+
+/* より強力なフィルタリングでデフォルトアイコンを除去 */
+.leaflet-tile-pane {
+  position: relative;
+}
+
+/* 特定のOSMシンボルを隠すCSS */
+.leaflet-tile-pane::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  /* 白でマスキングして特定の要素を隠す試み */
+  background: transparent;
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* カスタムマーカー用のベーススタイル（必要に応じて保持） */
+.custom-marker {
+  border-radius: 50%;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  z-index: 1000; /* OSMタイルより上に表示 */
+}
+
+.custom-marker:hover {
+  transform: scale(1.1);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+}
+
+/* アイコン非表示化の効果を確認するためのテスト用スタイル */
+.icon-control-test {
+  background: rgba(255, 0, 0, 0.3);
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  padding: 10px;
+  color: red;
+  font-weight: bold;
+  z-index: 2000;
+  border: 2px solid red;
+}
+
+/* より強力なOSMアイコン除去試行 */
+.leaflet-tile {
+  /* 色相や彩度を調整してアイコンを目立たなくする */
+  filter: grayscale(0.5) brightness(1.1) contrast(0.9);
+}
+
+/* OSMの特定の色やパターンをターゲットにした隠蔽 */
+.leaflet-map-pane {
+  position: relative;
+}
+
+/* 色ベースでのマスキング試行 */
+.hide-osm-icons .leaflet-tile {
+  filter: 
+    hue-rotate(0deg) 
+    saturate(0.8) 
+    brightness(1.05) 
+    contrast(1.1)
+    sepia(0.1);
+}
